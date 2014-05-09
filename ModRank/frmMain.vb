@@ -151,8 +151,11 @@ Public Class frmMain
             If File.Exists(Application.StartupPath & "\weights-" & UserSettings("WeightFile") & ".csv") = False Then
                 UserSettings("WeightFile") = "default"
             End If
+            ' Set locale for dtweights too...users might want to set decimal weights
+            dtWeights.Locale = Globalization.CultureInfo.InvariantCulture
             dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & UserSettings("WeightFile") & ".csv")
 
+            dtMods.Locale = Globalization.CultureInfo.InvariantCulture
             dtMods.Columns.Add("Categories", GetType(String))
             dtMods.Columns.Add("Description", GetType(String))
             dtMods.Columns.Add("Value", GetType(String))
