@@ -442,7 +442,7 @@ Public Class frmMain
 
             ' Get only the gear types out of the temp inventory list (we don't need gems, maps, currency, etc)
             statusCounter = 0 : lngModCounter = 0
-            Dim query As IEnumerable(Of Item) = TempInventoryAll.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "")
+            Dim query As IEnumerable(Of Item) = TempInventoryAll.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" AndAlso Item.TypeLine.ToLower.Contains("map") = False)
             AddToFullInventory(query, False)
 
             For Each league In Leagues
@@ -450,7 +450,7 @@ Public Class frmMain
                 Dim TempStash As New List(Of Item)
                 TempStash = FullStash.Get(Of Item)()
 
-                query = TempStash.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "")
+                query = TempStash.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" AndAlso Item.TypeLine.ToLower.Contains("map") = False)
                 AddToFullInventory(query, True)
             Next
 
