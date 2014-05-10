@@ -308,8 +308,8 @@ Public Class frmMain
             cmbWeight.Items.Add("Default")
             Dim dir = Application.StartupPath
             For Each file As String In System.IO.Directory.GetFiles(dir)
-                If file.ToLower.Contains("weight") And file.ToLower.Contains("csv") Then
-                    Dim strTemp As String = System.IO.Path.GetFileNameWithoutExtension(file)
+                Dim strTemp As String = System.IO.Path.GetFileNameWithoutExtension(file)
+                If strTemp.ToLower.StartsWith("weights") And file.ToLower.Contains("csv") Then
                     If strTemp.ToLower.Equals("weights-default") = False Then cmbWeight.Items.Add(StrConv(strTemp.Substring(strTemp.IndexOf("-") + 1), VbStrConv.ProperCase))
                 End If
             Next
