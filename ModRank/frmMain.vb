@@ -618,6 +618,12 @@ Public Class frmMain
                 newFullItem.League = myGear.League
                 newFullItem.ItemType = myGear.BaseType
                 newFullItem.GearType = myGear.GearType.ToString
+                If newFullItem.ItemType Is Nothing Or newFullItem.GearType = "Unknown" Then
+                    MessageBox.Show("An item (Name: " & myGear.Name & ", Location: " & newFullItem.Location & ") does not have an entry for its type and/or subtype in the APIs. Please report this to:" & Environment.NewLine & Environment.NewLine & _
+                                    "https://github.com/RoryTate/modrank/issues" & Environment.NewLine & Environment.NewLine & _
+                                    "Also, please provide the actual base type (i.e. Quiver) and subtype (i.e. Light Quiver) that are missing.", "Item Type/Subtype Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Continue For
+                End If
                 newFullItem.TypeLine = myGear.TypeLine.ToString
                 newFullItem.H = myGear.H
                 newFullItem.W = myGear.W

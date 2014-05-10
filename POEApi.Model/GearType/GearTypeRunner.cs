@@ -88,7 +88,7 @@ namespace POEApi.Model
     public class HelmetRunner : GearTypeRunnerBase
     {
         public HelmetRunner()
-            : base(GearType.Helmet, "Iron Hat", "Cone Helmet", "Barbute Helmet", "Close Helmet", "Gladiator Helmet", "Reaver Helmet", "Siege Helmet", "Samnite Helmet", "Ezomyte Burgonet", "Royal Burgonet", "Eternal Burgonet",
+            : base(GearType.Helmet, "Iron Hat", "Cone Helmet", "Barbute Helmet", "Close Helmet", "Gladiator Helmet", "Reaver Helmet", "Siege Helmet", "Samite Helmet", "Ezomyte Burgonet", "Royal Burgonet", "Eternal Burgonet",
                                     "Leather Cap", "Tricorne", "Leather Hood", "Wolf Pelt", "Hunter Hood", "Noble Tricorne", "Ursine Pelt", "Silken Hood", "Sinner Tricorne", "Lion Pelt",
                                     "Vine Circlet", "Iron Circlet", "Torture Cage", "Tribal Circlet", "Bone Circlet", "Lunaris Circlet", "Steel Circlet", "Necromancer Circlet", "Solaris Circlet", "Mind Cage", "Hubris Circlet",
                                     "Battered Helm", "Visored Sallet", "Gilded Sallet", "Secutor Helm", "Fencer Helm", "Lacquered Helmet", "Fluted Bascinet", "Pig Faced Bascinet", "Nightmare Bascinet", "Sallet", // "Sallet" must be after other base types which contain the word "sallet".
@@ -160,7 +160,7 @@ namespace POEApi.Model
             : base(GearType.Gloves, "Iron Gauntlets", "Plated Gauntlets", "Bronze Gauntlets", "Steel Gauntlets", "Antique Gauntlets", "Ancient Gauntlets", "Goliath Gauntlets", "Vaal Gauntlets", "Titan Gauntlets",
                                     "Rawhide Gloves", "Goathide Gloves", "Deerskin Gloves", "Nubuck Gloves", "Eelskin Gloves", "Sharkskin Gloves", "Shagreen Gloves", "Stealth Gloves", "Slink Gloves",
                                     "Wool Gloves", "Velvet Gloves", "Silk Gloves", "Embroidered Gloves", "Satin Gloves", "Samite Gloves", "Conjurer Gloves", "Arcanist Gloves", "Sorcerer Gloves",
-                                    "Fishscale Gauntlets", "Ironscale Gauntlets", "Bronzescale Gauntlets", "Steelscale Gauntlets", "Serpentscale Gauntlets", "Wyrmscale Gauntlets", "hydrascale Gauntlets", "Dragonscale Gauntlets",
+                                    "Fishscale Gauntlets", "Ironscale Gauntlets", "Bronzescale Gauntlets", "Steelscale Gauntlets", "Serpentscale Gauntlets", "Wyrmscale Gauntlets", "Hydrascale Gauntlets", "Dragonscale Gauntlets",
                                     "Chain Gloves", "Ringmail Gloves", "Mesh Gloves", "Riveted Gloves", "Zealot Gloves", "Soldier Gloves", "Legion Gloves", "Crusader Gloves",
                                     "Wrapped Mitts", "Strapped Mitts", "Clasped Mitts", "Trapper Mitts", "Ambush Mitts", "Carnal Mitts", "Assassin's Mitts", "Murder Mitts")
         {
@@ -237,7 +237,7 @@ namespace POEApi.Model
     public class QuiverRunner : GearTypeRunnerBase
     {
         public QuiverRunner()
-            : base(GearType.Quiver, "Rugged Quiver", "Cured Quiver", "Conductive Quiver", "Heavy Quiver", "Light Quiver","Spike-Point Arrow Quiver","Penetrating Arrow Quiver","Broadhead Arrow Quiver","Fire Arrow Quiver","Blunt Arrow Quiver","Sharktooth Arrow Quiver","Two-Point Arrow Quiver","Serrated Arrow Quiver")
+            : base(GearType.Quiver, "Rugged Quiver", "Cured Quiver", "Conductive Quiver", "Heavy Quiver", "Light Quiver", "Spike-Point Arrow Quiver", "Penetrating Arrow Quiver", "Broadhead Arrow Quiver", "Fire Arrow Quiver", "Blunt Arrow Quiver", "Sharktooth Arrow Quiver", "Two-Point Arrow Quiver", "Serrated Arrow Quiver")
         {
             generalTypes.Add("Quiver");
         }
@@ -270,7 +270,7 @@ namespace POEApi.Model
     {
         public SwordRunner()
             : base(GearType.Sword, "Rusted Sword", "Copper Sword", "Sabre", "Broad Sword", "War Sword", "Ancient Sword", "Elegant Sword", "Dusk Blade", "Variscite Blade", "Cutlass", "Baselard", "Battle Sword", "Elder Sword", "Graceful Sword", "Twilight Blade", "Gemstone Sword", "Corsair Sword", "Gladius", "Legion Sword", "Vaal Blade", "Eternal Sword", "Midnight Blade",
-                                   "Rusted Spike", "Whalebone Rapier", "Battered Foil", "Basket Rapier", "Jagged Foil", "Antique Rapier", "Elegant Foil", "Thorn Rapier", "Wyrmbone Rapier", "Burnished Foil", "Estoc", "Serrated Foil", "Primeval Rapier", "Fancy Foil", "Apex Rapier", "Dragonbone Rapier", "Tempered Foil", "Pecoraro", "Spiraled Foil", "Vaal Rapier", "Jeweled Foil", "Harpy Rapier",
+                                   "Rusted Spike", "Whalebone Rapier", "Battered Foil", "Basket Rapier", "Jagged Foil", "Antique Rapier", "Elegant Foil", "Thorn Rapier", "Wyrmbone Rapier", "Burnished Foil", "Estoc", "Serrated Foil", "Primeval Rapier", "Fancy Foil", "Apex Rapier", "Dragonbone Rapier", "Tempered Foil", "Pecoraro", "Spiraled Foil", "Vaal Rapier", "Jewelled Foil", "Harpy Rapier",
                                    "Corroded Blade", "Longsword", "Bastard Sword", "Two-Handed Sword", "Etched Greatsword", "Ornate Sword", "Spectral Sword", "Butcher Sword", "Footman Sword", "Highland Blade", "Engraved Greatsword", "Tiger Sword", "Wraith Sword", "Headman's Sword", "Reaver Sword", "Ezomyte Blade", "Vaal Greatsword", "Lion Sword", "Infernal Sword")
         {
             generalTypes.AddRange(new List<string>() { "Sword", "sword", "Sabre", "Dusk Blade", "Cutlass", "Baselard", "Gladius", "Variscite Blade", "Vaal Blade", "Midnight Blade", "Corroded Blade",
@@ -286,7 +286,7 @@ namespace POEApi.Model
                                     "Twig Spirit Shield", "Yew Spirit Shield", "Bone Spirit Shield", "Tarnished Spirit Shield", "Jingling Spirit Shield", "Brass Spirit Shield", "Walnut Spirit Shield", "Ivory Spirit Shield", "Ancient Spirit Shield", "Chiming Spirit Shield", "Thorium Spirit Shield", "Lacewood Spirit Shield", "Fossilized Spirit Shield", "Vaal Spirit Shield", "Harmonic Spirit Shield", "Titanium Spirit Shield",
                                     "Rotted Round Shield", "Fir Round Shield", "Studded Round Shield", "Scarlet Round Shield", "Splendid Round Shield", "Maple Round Shield", "Spiked Round Shield", "Crimson Round Shield", "Baroque Round Shield", "Teak Round Shield", "Spiny Round Shield", "Cardinal Round Shield", "Elegant Round Shield",
                                     "Plank Kite Shield", "Linden Kite Shield", "Reinforced Kite Shield", "Layered Kite Shield", "Ceremonial Kite Shield", "Etched Shield", "Steel Kite Shield", "Laminated Kite Shield", "Angelic Kite Shield", "Branded Kite Shield", "Champion Kite Shield", "Mosaic Kite Shield", "Archon Kite Shield",
-                                    "Spiked Bundle", "Driftwood Spiked Shield", "Alloyed Spike Shield", "Burnished Spike Shield", "Ornate Spike Shield", "Redwood Spiked Shield", "Compound Spiked Shield", "Polished Spiked Shield", "Sovereign Spiked Shield", "Alder Spike Shield", "Ezomyte Spiked Shield", "Mirrored Spike Shield", "Supreme Spiked Shield")
+                                    "Spiked Bundle", "Driftwood Spiked Shield", "Alloyed Spike Shield", "Burnished Spike Shield", "Ornate Spike Shield", "Redwood Spiked Shield", "Compound Spiked Shield", "Polished Spiked Shield", "Sovereign Spiked Shield", "Alder Spike Shield", "Ezomyte Spiked Shield", "Mirrored Spiked Shield", "Supreme Spiked Shield")
         {
             generalTypes.Add("Shield");
             generalTypes.Add("Spiked Bundle");
