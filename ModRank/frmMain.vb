@@ -38,6 +38,7 @@ Public Class frmMain
     Public statusCounter As Long, lngModCounter As Long
     Public blSolomonsJudgment As New Dictionary(Of String, Boolean)        ' Used to decide which mod gets both .5's in a two-way combined split
     Public blAddedOne As Boolean = False    '  Used in the dynamic mod evaluation method, to help know when a mod contains "Legacy" values
+    Public blScroll As Boolean = False
 
     Dim oldColorDark As Color = Color.FromArgb(127, 127, 127)
     Dim oldColorLight As Color = Color.FromArgb(195, 195, 195)
@@ -1493,6 +1494,7 @@ AddMod2:
     End Sub
 
     Private Sub DataGridView1_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseEnter
+        If blScroll = True Then Exit Sub
         If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
             (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Hand
     End Sub
@@ -1502,8 +1504,13 @@ AddMod2:
     End Function
 
     Private Sub DataGridView1_CellMouseLeave(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseLeave
+        If blScroll = True Then Exit Sub
         If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
             (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Default
+    End Sub
+
+    Private Sub DataGridView1_CellMouseMove(sender As Object, e As DataGridViewCellMouseEventArgs) Handles DataGridView1.CellMouseMove
+        blScroll = False
     End Sub
 
     Private Sub DataGridView1_CellPainting(sender As Object, e As DataGridViewCellPaintingEventArgs) Handles DataGridView1.CellPainting
@@ -1787,6 +1794,10 @@ AddMod2:
     Private Function ReturnFirstCell() As DataGridViewCell
         Return DataGridView1.Rows(0).Cells(0)
     End Function
+
+    Private Sub DataGridView1_Scroll(sender As Object, e As ScrollEventArgs) Handles DataGridView1.Scroll
+        blScroll = True
+    End Sub
 
     Private Sub DataGridView1_SelectionChanged(sender As Object, e As EventArgs) Handles DataGridView1.SelectionChanged
         If DataGridView1.CurrentCell Is Nothing Then Exit Sub
