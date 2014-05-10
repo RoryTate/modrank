@@ -237,7 +237,7 @@ namespace POEApi.Model
     public class QuiverRunner : GearTypeRunnerBase
     {
         public QuiverRunner()
-            : base(GearType.Quiver, "Rugged Quiver", "Cured Quiver", "Conductive Quiver", "Heavy Quiver", "Light Quiver")
+            : base(GearType.Quiver, "Rugged Quiver", "Cured Quiver", "Conductive Quiver", "Heavy Quiver", "Light Quiver","Spike-Point Arrow Quiver","Penetrating Arrow Quiver","Broadhead Arrow Quiver","Fire Arrow Quiver","Blunt Arrow Quiver","Sharktooth Arrow Quiver","Two-Point Arrow Quiver","Serrated Arrow Quiver")
         {
             generalTypes.Add("Quiver");
         }
