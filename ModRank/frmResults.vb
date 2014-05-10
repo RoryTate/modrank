@@ -28,7 +28,7 @@
         End Try
     End Sub
 
-    Private Sub DataGridView1_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellDoubleClick
+    Private Sub DataGridView1_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
         If e.RowIndex = -1 Then Exit Sub
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
@@ -49,6 +49,16 @@
         ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "" Then
             frmMain.ShowModInfo(DataGridView1, frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitSuffixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
         End If
+    End Sub
+
+    Private Sub DataGridView1_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseEnter
+        If frmMain.IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
+            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix")) Then DataGridView1.Cursor = Cursors.Hand
+    End Sub
+
+    Private Sub DataGridView1_CellMouseLeave(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseLeave
+        If frmMain.IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
+            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix")) Then DataGridView1.Cursor = Cursors.Default
     End Sub
 
     Private Sub DataGridView1_CellPainting(sender As Object, e As DataGridViewCellPaintingEventArgs) Handles DataGridView1.CellPainting

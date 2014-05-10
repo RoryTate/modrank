@@ -1,6 +1,7 @@
 ﻿Imports POEApi.Infrastructure
 Imports POEApi.Model
 Imports System
+Imports System.IO
 Imports System.Collections.Generic
 Imports System.Globalization
 Imports System.Linq
@@ -75,7 +76,22 @@ Module mdlSettings
     End Function
 
     Public Sub ErrorHandler(ByVal strName As String, ByVal ex As Exception, Optional ByVal strExtraText As String = "")
-        MessageBox.Show("Error in " & strName & ": " & Environment.NewLine & ex.Message & IIf(strExtraText <> "", Environment.NewLine & Environment.NewLine & strExtraText, ""), _
-                        "ModRank", MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly)
+        Dim strError As String = "Error in " & strName & ": " & Environment.NewLine & ex.Message & IIf(strExtraText <> "", Environment.NewLine & Environment.NewLine & strExtraText, "")
+        MessageBox.Show(strError, "ModRank", MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly)
+        WriteToLog(strError)
+    End Sub
+
+    Public Sub WriteToLog(strError As String)
+        Dim strFile As String = Application.StartupPath & "\modrank.log"
+        Dim fs As FileStream
+        Dim sw As StreamWriter
+        If System.IO.File.Exists(strFile) Then
+            fs = New FileStream(strFile, FileMode.Append, FileAccess.Write)
+        Else
+            fs = New FileStream(strFile, FileMode.Create, FileAccess.Write)
+        End If
+        sw = New StreamWriter(fs)
+        sw.WriteLine(Environment.NewLine & Now & ":" & Environment.NewLine & "-------------------------" & Environment.NewLine & strError & Environment.NewLine & "-------------------------")
+        sw.Close() : fs.Close()
     End Sub
 End Module

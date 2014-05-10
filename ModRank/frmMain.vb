@@ -264,11 +264,11 @@ Public Class frmMain
             ToolTip1.SetToolTip(lblHasGem, strHasGem)
             ToolTip1.SetToolTip(pic0, strHasGem)
             Dim strUnknownValues As String = "A mod with this background color indicates that the mod value is outside of the possible ranges, meaning that this is likely a legacy mod value." & _
-                Environment.NewLine & Environment.NewLine & "Double click any cell with this background color to get more information on why this was considered a legacy mod value."
+                Environment.NewLine & Environment.NewLine & "Click any cell with this background color to get more information on why this was considered a legacy mod value."
             ToolTip1.SetToolTip(lblUnknownValues, strUnknownValues)
             ToolTip1.SetToolTip(pic1, strUnknownValues)
             Dim strOtherSolutions As String = "A '*' column with this background color indicates that alternate solutions of prefixes/suffixes and/or values exist for this item." & _
-                Environment.NewLine & Environment.NewLine & "Double click any cell with this background color to view the alternate configurations of prefix/suffix mods for this item."
+                Environment.NewLine & Environment.NewLine & "Click any cell with this background color to view the alternate configurations of prefix/suffix mods for this item."
             ToolTip1.SetToolTip(lblOtherSolutions, strOtherSolutions)
             ToolTip1.SetToolTip(pic2, strOtherSolutions)
             Dim strFixedValue As String = "A mod with this background color has no possible variation in its values or level, so the normal 'mod level bar' would be misleading." & _
@@ -285,7 +285,7 @@ Public Class frmMain
                 Environment.NewLine & Environment.NewLine & "Note: A less than or equal to (<=) comparison is used for this value."
             ToolTip1.SetToolTip(lblLowWeightMod, strLowWeightMod)
             ToolTip1.SetToolTip(lblMin, strLowWeightMod)
-            Dim strDoubleClick As String = "Double click on any of the Rank, Prefix, Suffix, and * cells (where values exist) to get more detailed information on the item."
+            Dim strDoubleClick As String = "Click on any of the Rank, Prefix, Suffix, and * cells (where values exist) to get more detailed information on the item."
             ToolTip1.SetToolTip(lblDoubleClick, strDoubleClick)
 
         Catch ex As Exception
@@ -757,7 +757,7 @@ Public Class frmMain
             Dim ModResult() As DataRow = dtMods.Select(strWhere)
             Return ModResult
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "GearType: " & newFullItem.GearType & vbCrLf & "Level: " & newFullItem.Level & vbCrLf & "ForceDesc: " & strForceDescription & vbCrLf & "Affix: " & strAffix)
             Return Nothing
         End Try
     End Function
@@ -937,7 +937,8 @@ AddMod:
                 End If
             End If
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "New Mod Description: " & MyRow("Description") & vbCrLf & _
+                         "Current ModList Contents: " & String.Join(vbCrLf, ModList.[Select](Function(r) r("Description").ToString()).ToArray()))
         End Try
     End Sub
 
@@ -1434,7 +1435,7 @@ AddMod2:
         End Try
     End Sub
 
-    Private Sub DataGridView1_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellDoubleClick
+    Private Sub DataGridView1_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
         If e.RowIndex = -1 Then Exit Sub
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
@@ -1471,7 +1472,7 @@ AddMod2:
                 For Each ModRow In RunModResultQuery(MyItem, row, , strAffix)
                     If blAddedTopRow = False Then
                         sb.Append("----------" & vbTab & "------------" & vbCrLf)
-                        sb.Append("| Levels" & vbTab & "| Values" & vbCrLf)
+                        sb.Append("| Level" & vbTab & "| Values" & vbCrLf)
                         sb.Append("----------" & vbTab & "------------" & vbCrLf)
                         blAddedTopRow = True
                     End If
@@ -1489,6 +1490,20 @@ AddMod2:
 
     Public Sub AddGemWarning(ByRef sb As System.Text.StringBuilder)
         sb.Append("**WARNING!!** Item level requirements set by an equipped gem...mod level ranges are likely too large, and the ranking will be artificially lowered as a result. It is recommended that the gem be removed before evaluating the item in this manner." & vbCrLf & vbCrLf)
+    End Sub
+
+    Private Sub DataGridView1_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseEnter
+        If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
+            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Hand
+    End Sub
+
+    Public Function IsValidCellAddress(dg As DataGridView, rowIndex As Integer, columnIndex As Integer) As Boolean
+        Return rowIndex >= 0 AndAlso rowIndex < dg.RowCount AndAlso columnIndex >= 0 AndAlso columnIndex <= dg.ColumnCount
+    End Function
+
+    Private Sub DataGridView1_CellMouseLeave(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseLeave
+        If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
+            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Default
     End Sub
 
     Private Sub DataGridView1_CellPainting(sender As Object, e As DataGridViewCellPaintingEventArgs) Handles DataGridView1.CellPainting
@@ -1792,4 +1807,5 @@ AddMod2:
     Private Sub btnEditWeights_Click(sender As Object, e As EventArgs) Handles btnEditWeights.Click
         frmWeights.ShowDialog()
     End Sub
+
 End Class
