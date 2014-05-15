@@ -12,17 +12,16 @@
 
     Private Sub RunQuery()
         Try
-            Dim query = From myItem In frmMain.dtOverflow Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
+            Dim query = From myItem In dtOverflow Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
             Dim dt As DataTable = query.CopyToDataTable()
             ' Add the row that is selected on the main form
-            Dim query2 = From myItem In frmMain.dtRank Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
+            Dim query2 = From myItem In dtRank Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
             Dim dt2 As DataTable = query2.CopyToDataTable
             dt.ImportRow(dt2.Rows(0))
             Me.DataGridView1.DataSource = dt
-            Me.DataGridView1.Columns("ID").Visible = False
-            Me.DataGridView1.Columns("Index").Visible = False
+            Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
             Me.DataGridView1.Columns("%").DefaultCellStyle.Format = "n1"
-            frmMain.SetDataGridViewWidths(DataGridView1)
+            SetDataGridViewWidths(DataGridView1)
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try

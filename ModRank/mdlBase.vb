@@ -145,4 +145,13 @@
             Return False
         End Try
     End Function
+
+    Public Function CheckIfControlExists(frm As Form, strName As String) As Boolean
+        For Each ctl As Control In frm.Controls
+            If ctl.Name = strName Then
+                Return True
+            End If
+        Next
+        Return False
+    End Function
 End Module

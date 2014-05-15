@@ -8,9 +8,9 @@
     Private Sub frmWeights_Load(sender As Object, e As EventArgs) Handles Me.Load
         Try
             Me.Icon = GetEmbeddedIcon("ModRank.PoE.ico")
-            dtTemp = frmMain.dtWeights.Clone
+            dtTemp = dtWeights.Clone
             dtTemp.Rows.Clear()
-            For Each row In frmMain.dtWeights.Rows
+            For Each row In dtWeights.Rows
                 dtTemp.ImportRow(DeepCopyDataRow(row))
             Next
             dgWeights.DataSource = dtTemp

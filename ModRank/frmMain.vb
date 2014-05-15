@@ -16,10 +16,6 @@ Imports POEApi.Infrastructure.Events
 Imports System.Deployment.Application
 
 Public Class frmMain
-    Public dtRank As DataTable = New DataTable()
-    Public dtOverflow As DataTable = New DataTable
-    Public dtMods As DataTable = New DataTable()
-    Public dtWeights As DataTable = New DataTable()
     Public RecalculateThread As Threading.Thread
     Public ProgressBarThread As Threading.Thread
 
@@ -48,16 +44,13 @@ Public Class frmMain
     Private Delegate Sub FillCredentialsDelegate()
     Public Delegate Sub MyDelegate()
     Public Delegate Function MyDelegateFunction()
-    Public Delegate Sub MyControlDelegate(myControl As Object)
+    Public Delegate Sub MyClickDelegate(sender As Object, e As EventArgs)
 
     Public blRepopulated As Boolean = False
+    Public strFilter As String = ""
+    Public strOrderBy As String = ""
 
-    ' RCPD = Read Control Property Delegate (used a lot so abbreviated)
-    Public Delegate Function RCPD(ByVal MyControl As Object, ByVal MyProperty As Object) As String
-    ' UCPD = Update Control Property Delegate
-    Public Delegate Sub UCPD(ByVal MyControl As Object, ByVal MyProperty As Object, ByVal MyValue As Object)
 
-    Public bytColumns As Byte = 0       ' The max number of columns displayed in the datagridview
 
     Private Shared m_currentCharacter As Character = Nothing
 
@@ -224,7 +217,57 @@ Public Class frmMain
             dtRank.Columns.Add("Gem", GetType(Boolean))
             dtRank.Columns.Add("Sokt", GetType(Byte))
             dtRank.Columns.Add("Link", GetType(Byte))
-            dtRank.Columns.Add("Corrupt", GetType(Boolean))
+            dtRank.Columns.Add("Qal", GetType(Byte))
+            dtRank.Columns.Add("Crpt", GetType(Boolean))
+            dtRank.Columns.Add("pft1", GetType(String))
+            dtRank.Columns.Add("pt1", GetType(String))
+            dtRank.Columns.Add("pt12", GetType(String))
+            dtRank.Columns.Add("pft2", GetType(String))
+            dtRank.Columns.Add("pt2", GetType(String))
+            dtRank.Columns.Add("pt22", GetType(String))
+            dtRank.Columns.Add("pft3", GetType(String))
+            dtRank.Columns.Add("pt3", GetType(String))
+            dtRank.Columns.Add("pt32", GetType(String))
+            dtRank.Columns.Add("pv1", GetType(Single))
+            dtRank.Columns.Add("pv1m", GetType(Single))
+            dtRank.Columns.Add("pv12", GetType(Single))
+            dtRank.Columns.Add("pv2", GetType(Single))
+            dtRank.Columns.Add("pv2m", GetType(Single))
+            dtRank.Columns.Add("pv22", GetType(Single))
+            dtRank.Columns.Add("pv3", GetType(Single))
+            dtRank.Columns.Add("pv3m", GetType(Single))
+            dtRank.Columns.Add("pv32", GetType(Single))
+            dtRank.Columns.Add("pcount", GetType(Byte))
+            dtRank.Columns.Add("sft1", GetType(String))
+            dtRank.Columns.Add("st1", GetType(String))
+            dtRank.Columns.Add("st12", GetType(String))
+            dtRank.Columns.Add("sft2", GetType(String))
+            dtRank.Columns.Add("st2", GetType(String))
+            dtRank.Columns.Add("st22", GetType(String))
+            dtRank.Columns.Add("sft3", GetType(String))
+            dtRank.Columns.Add("st3", GetType(String))
+            dtRank.Columns.Add("st32", GetType(String))
+            dtRank.Columns.Add("sv1", GetType(Single))
+            dtRank.Columns.Add("sv1m", GetType(Single))
+            dtRank.Columns.Add("sv12", GetType(Single))
+            dtRank.Columns.Add("sv2", GetType(Single))
+            dtRank.Columns.Add("sv2m", GetType(Single))
+            dtRank.Columns.Add("sv22", GetType(Single))
+            dtRank.Columns.Add("sv3", GetType(Single))
+            dtRank.Columns.Add("sv3m", GetType(Single))
+            dtRank.Columns.Add("sv32", GetType(Single))
+            dtRank.Columns.Add("scount", GetType(Byte))
+            dtRank.Columns.Add("ecount", GetType(Byte))
+            dtRank.Columns.Add("it1", GetType(String))
+            dtRank.Columns.Add("it2", GetType(String))
+            dtRank.Columns.Add("it3", GetType(String))
+            dtRank.Columns.Add("iv1", GetType(Single))
+            dtRank.Columns.Add("iv1m", GetType(Single))
+            dtRank.Columns.Add("iv2", GetType(Single))
+            dtRank.Columns.Add("iv2m", GetType(Single))
+            dtRank.Columns.Add("iv3", GetType(Single))
+            dtRank.Columns.Add("iv3m", GetType(Single))
+            dtRank.Columns.Add("icount", GetType(Byte))
             dtRank.Columns.Add("Index", GetType(Long))
             dtRank.Columns.Add("ID", GetType(String))
             Dim primaryKey(1) As DataColumn
@@ -232,6 +275,7 @@ Public Class frmMain
             dtRank.PrimaryKey = primaryKey
 
             dtOverflow = dtRank.Clone
+            dtRankFilter = dtRank.Clone
 
             WPFPassword.BorderThickness = New Windows.Thickness(1.0)
             Dim winColor As Color = SystemColors.Window
@@ -372,16 +416,7 @@ Public Class frmMain
             AddHandler Model.StashLoading, AddressOf model_StashLoading
             AddHandler Model.Throttled, AddressOf model_Throttled
 
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnLoad, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnOffline, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {txtEmail, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblEmail, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {chkSession, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ElementHost1, "Enabled", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblPassword, "Enabled", False})
+            EnableDisableControls(False, New List(Of String)(New String() {"ElementHost2"}))
 
             Dim password As SecureString
             If blFormChanged Then
@@ -392,7 +427,6 @@ Public Class frmMain
             Email = Me.txtEmail.Text
             useSession = chkSession.Checked
             Model.Authenticate(Email, password, blOffline, useSession)
-            saveSettings(password)
             If Not blOffline Then
                 Model.ForceRefresh()
                 statusController.DisplayMessage("Loading characters...")
@@ -409,7 +443,6 @@ Public Class frmMain
                 Throw New Exception("Failed to load characters", wex.InnerException)
             End Try
             statusController.Ok()
-
 
             Dim downloadOnlyMyLeagues As Boolean = False
             downloadOnlyMyLeagues = (Settings.UserSettings.ContainsKey("DownloadOnlyMyLeagues") AndAlso Boolean.TryParse(Settings.UserSettings("DownloadOnlyMyLeagues"), downloadOnlyMyLeagues) AndAlso downloadOnlyMyLeagues AndAlso Settings.Lists.ContainsKey("MyLeagues") AndAlso Settings.Lists("MyLeagues").Count > 0)
@@ -465,9 +498,7 @@ Public Class frmMain
             AddToDataTable(TempInventory, dtOverflow, True, "Overflow Inventory Table")
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
-            bytColumns = CByte(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns, "Count"}).ToString)
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns(bytColumns - 1), "Visible", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns(bytColumns - 2), "Visible", False})
+            Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("%").DefaultCellStyle, "Format", "n1"})
             Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
             Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
@@ -476,43 +507,42 @@ Public Class frmMain
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "WindowState", FormWindowState.Maximized})
+            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ElementHost2, "Visible", False})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Left", 550})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Visible", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
+            Dim intRows As Integer = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Visible", True})
             Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
-
             RemoveHandler Model.StashLoading, AddressOf model_StashLoading
             RemoveHandler Model.Throttled, AddressOf model_Throttled
+            saveSettings(password)
+            ' Enable the following to see all of the columns to debug and troubleshoot
+            'For i = bytDisplay To bytColumns - 1
+            '    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns(i), "Visible", True})
+            'Next
+
+            If strFilter.Trim <> "" Then
+                Dim FilterThread As New Threading.Thread(AddressOf ApplyFilter)
+                FilterThread.SetApartmentState(Threading.ApartmentState.STA)
+                FilterThread.Start()
+            End If
 
         Catch ex As Exception
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnLoad, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnOffline, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {txtEmail, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblEmail, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {chkSession, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ElementHost1, "Enabled", True})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblPassword, "Enabled", True})
+            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2"}))
             RemoveHandler Model.StashLoading, AddressOf model_StashLoading
             RemoveHandler Model.Throttled, AddressOf model_Throttled
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
 
-    Public Function ReadControlProperty(ByVal MyControl As Object, ByVal MyProperty As Object) As String
-        Dim p As System.Reflection.PropertyInfo = MyControl.GetType().GetProperty(DirectCast(MyProperty, String))
-        ReadControlProperty = p.GetValue(MyControl, Nothing).ToString
-    End Function
-
-    Private Sub SetControlProperty(ByVal MyControl As Object, ByVal MyProperty As Object, ByVal MyValue As Object)
-        Dim p As System.Reflection.PropertyInfo = MyControl.GetType().GetProperty(DirectCast(MyProperty, String))
-        p.SetValue(MyControl, MyValue, Nothing)
+    Public Sub EnableDisableControls(blEnable As Boolean, Optional lstIgnore As List(Of String) = Nothing)
+        For Each ctl In Me.Controls
+            If lstIgnore Is Nothing = False AndAlso lstIgnore.Contains(ctl.Name) = True Then Continue For
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ctl, "Enabled", blEnable})
+        Next
     End Sub
 
     Private Sub SetDataGridFocus()
@@ -526,24 +556,6 @@ Public Class frmMain
 
     Private Sub SortDataGridView()
         DataGridView1.Sort(DataGridView1.Columns(0), System.ComponentModel.ListSortDirection.Descending)
-    End Sub
-
-    Public Sub SetDataGridViewWidths(dg As DataGridView)
-        Try
-            Dim bytCounter As Byte = 0
-            For Each MyWidth In Split(UserSettings("RowWidths"), ",")
-                If bytCounter > dg.Columns.Count - 1 Then Exit For
-                If IsNumeric(MyWidth) = False Then Continue For
-                If MyWidth <= 0 Then
-                    dg.Columns(bytCounter).Visible = False
-                Else
-                    dg.Columns(bytCounter).Width = MyWidth
-                End If
-                bytCounter += 1
-            Next
-        Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
-        End Try
     End Sub
 
     Private Sub loadCharacterInventory(character As Character, offline As Boolean)
@@ -642,6 +654,7 @@ Public Class frmMain
                         newFullItem.Links = IIf(i = 1, 0, i) : Exit For
                     End If
                 Next
+                If myGear.IsQuality Then newFullItem.Quality = myGear.Quality
                 newFullItem.Corrupted = myGear.Corrupted
                 If Not IsNothing(myGear.Implicitmods) Then
                     For i = 0 To myGear.Implicitmods.Count - 1
@@ -729,45 +742,6 @@ Public Class frmMain
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
-
-    Public Function RunModResultQuery(newFullItem As FullItem, Optional result As DataRow = Nothing, Optional strForceDescription As String = "", Optional strAffix As String = "") As DataRow()
-        Try
-            Dim strGearType As String = ""
-            If newFullItem.GearType.ToString = "Sword" Or newFullItem.GearType.ToString = "Axe" Then
-                If newFullItem.H = 4 And newFullItem.W = 2 Then
-                    strGearType = "[2h Swords and Axes]"
-                Else
-                    If newFullItem.TypeLine.ToString.CompareMultiple(StringComparison.OrdinalIgnoreCase, "corroded blade", "longsword", "butcher sword", "headman's sword") Then
-                        strGearType = "[2h Swords and Axes]"
-                    Else
-                        strGearType = "[1h Swords and Axes]"
-                    End If
-                End If
-            ElseIf newFullItem.GearType.ToString = "Mace" Then
-                If newFullItem.H = 4 And newFullItem.W = 2 Then strGearType = "[2h Maces]" Else strGearType = "[1h Maces]"
-            Else
-                strGearType = newFullItem.GearType.ToString
-            End If
-            ' Note: Level required is 80% of the highest level magic modifier, but the best way to calculate is to add .49 onto the level to make sure we have the maximum,
-            ' and then multiply that by 1.25 (or divide by 0.8 if you prefer), and take the rounded result
-            ' For example, if the level reqt is 8, then we take 8.49 * 1.25 = 10.6125 = 11  as opposed to incorrectly trying  8 * 1.25 = 10
-            Dim strLevel As String = IIf(newFullItem.Level <> 0, "AND Level<=" & Math.Round(1.25 * (newFullItem.Level + 0.49)), "")
-            Dim strDescription As String = ""
-            If strForceDescription <> "" Then
-                strDescription = strForceDescription
-            Else
-                strDescription = result("Description")
-            End If
-
-            Dim strWhere As String = "Description='" & strDescription & "' AND " & strGearType & "=True " & strLevel
-            If strAffix <> "" Then strWhere += " AND [Prefix/Suffix]='" & strAffix & "'"
-            Dim ModResult() As DataRow = dtMods.Select(strWhere)
-            Return ModResult
-        Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "GearType: " & newFullItem.GearType & vbCrLf & "Level: " & newFullItem.Level & vbCrLf & "ForceDesc: " & strForceDescription & vbCrLf & "Affix: " & strAffix)
-            Return Nothing
-        End Try
-    End Function
 
     Public Function CheckForCombinedMod(result() As DataRow, j As Integer, newFullMod As FullMod, myGear As Gear, i As Integer) As Byte
         ' This function looks to see if the mod entry selected from weights-*.csv is a combined mod, and if successful will return the 
@@ -1400,14 +1374,15 @@ AddMod2:
         Try
             Dim intCounter As Integer = 0
             For Each it In myList
+                Dim bytPCount As Byte = 0, bytSCount As Byte = 0, bytICount As Byte = 0
                 Dim row As DataRow = dt.NewRow()
                 row("Rank") = it.Rank
                 row("%") = it.Percentile
-                row("Type") = If(it.GearType, DBNull.Value)
-                row("SubType") = If(it.ItemType, DBNull.Value)
-                row("Leag") = If(it.League, DBNull.Value)
-                row("Location") = If(it.Location, DBNull.Value)
-                row("Name") = If(it.Name, DBNull.Value)
+                row("Type") = If(it.GearType, "")
+                row("SubType") = If(it.ItemType, "")
+                row("Leag") = If(it.League, "")
+                row("Location") = If(it.Location, "")
+                row("Name") = If(it.Name, "")
                 row("Level") = it.Level
                 row("Gem") = it.LevelGem
                 row("Sokt") = it.Sockets
@@ -1415,21 +1390,67 @@ AddMod2:
                 If it.ExplicitPrefixMods Is Nothing = False Then
                     For i = 0 To it.ExplicitPrefixMods.Count - 1
                         row("Prefix " & i + 1) = it.ExplicitPrefixMods(i).FullText
+                        row("pft" & i + 1) = it.ExplicitPrefixMods(i).Type1 & IIf(it.ExplicitPrefixMods(i).Type2 <> "", "/" & it.ExplicitPrefixMods(i).Type2, "")
+                        row("pt" & i + 1) = it.ExplicitPrefixMods(i).Type1
+                        row("pt" & i + 1 & "2") = it.ExplicitPrefixMods(i).Type2
+                        row("pv" & i + 1) = it.ExplicitPrefixMods(i).Value1
+                        row("pv" & i + 1 & "m") = it.ExplicitPrefixMods(i).MaxValue1
+                        row("pv" & i + 1 & "2") = it.ExplicitPrefixMods(i).Value2
+                        bytPCount += 1
+                    Next
+                    For i = it.ExplicitPrefixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
+                        row("Prefix " & i + 1) = ""
+                        row("pft" & i + 1) = ""
+                        row("pt" & i + 1) = ""
+                        row("pt" & i + 1 & "2") = ""
+                        row("pv" & i + 1) = 0
+                        row("pv" & i + 1 & "m") = 0
+                        row("pv" & i + 1 & "2") = 0
                     Next
                 End If
+                row("pcount") = bytPCount
                 If it.ExplicitSuffixMods Is Nothing = False Then
                     For i = 0 To it.ExplicitSuffixMods.Count - 1
                         row("Suffix " & i + 1) = it.ExplicitSuffixMods(i).FullText
+                        row("sft" & i + 1) = it.ExplicitSuffixMods(i).Type1 & IIf(it.ExplicitSuffixMods(i).Type2 <> "", "/" & it.ExplicitSuffixMods(i).Type2, "")
+                        row("st" & i + 1) = it.ExplicitSuffixMods(i).Type1
+                        row("st" & i + 1 & "2") = it.ExplicitSuffixMods(i).Type2
+                        row("sv" & i + 1) = it.ExplicitSuffixMods(i).Value1
+                        row("sv" & i + 1 & "m") = it.ExplicitSuffixMods(i).MaxValue1
+                        row("sv" & i + 1 & "2") = it.ExplicitSuffixMods(i).Value2
+                        bytSCount += 1
+                    Next
+                    For i = it.ExplicitSuffixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
+                        row("Suffix " & i + 1) = ""
+                        row("sft" & i + 1) = ""
+                        row("st" & i + 1) = ""
+                        row("st" & i + 1 & "2") = ""
+                        row("sv" & i + 1) = 0
+                        row("sv" & i + 1 & "m") = 0
+                        row("sv" & i + 1 & "2") = 0
                     Next
                 End If
+                row("scount") = bytSCount
+                row("ecount") = it.ExplicitPrefixMods.Count + it.ExplicitSuffixMods.Count
                 If it.ImplicitMods Is Nothing = False Then
                     For i = 0 To it.ImplicitMods.Count - 1
                         row("Implicit") = row("Implicit") & it.ImplicitMods(i).FullText & ", "
+                        row("it" & i + 1) = it.ImplicitMods(i).Type1
+                        row("iv" & i + 1) = it.ImplicitMods(i).Value1
+                        row("iv" & i + 1 & "m") = it.ImplicitMods(i).MaxValue1
+                        bytICount += 1
+                    Next
+                    For i = it.ImplicitMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
+                        row("it" & i + 1) = ""
+                        row("iv" & i + 1) = 0
+                        row("iv" & i + 1 & "m") = 0
                     Next
                     row("Implicit") = row("Implicit").ToString.Substring(0, Math.Max(2, row("Implicit").ToString.Length) - 2)
                 End If
+                row("icount") = bytICount
+                row("Qal") = it.Quality
                 row("*") = If(it.OtherSolutions, "*", "")
-                row("Corrupt") = it.Corrupted
+                row("Crpt") = it.Corrupted
                 row("Index") = myList.IndexOf(it)
                 row("ID") = it.ID
                 dt.Rows.Add(row)
@@ -1825,4 +1846,73 @@ AddMod2:
         frmWeights.ShowDialog()
     End Sub
 
+    Private Sub btnSearch_Click(sender As Object, e As EventArgs) Handles btnSearch.Click
+        frmFilter.ShowDialog(Me)
+    End Sub
+
+    Public Sub SetFilter(strTemp As String)
+        If strTemp = "" Then
+            strFilter = ""
+            strOrderBy = "[RANK] DESC"
+        Else
+            Dim strTestFilter As String = ConvertFilterToSQL(strTemp)
+            If strTestFilter = strFilter Then Exit Sub
+            strFilter = strTestFilter.Substring(0, strTestFilter.IndexOf("ORDER BY"))
+            strOrderBy = strTestFilter.Substring(strTestFilter.IndexOf("ORDER BY") + 9)
+        End If
+        If dtRank.Rows.Count = 0 Then Exit Sub ' Don't apply the filter if we haven't loaded data yet
+        Dim FilterThread As New Threading.Thread(AddressOf ApplyFilter)
+        FilterThread.SetApartmentState(Threading.ApartmentState.STA)
+        FilterThread.Start()
+    End Sub
+
+    Public Sub ApplyFilter()
+        Try
+            Dim FirstCell As DataGridViewCell
+            Dim intRows As Integer = 0
+            If strFilter.Trim.Length = 0 Then
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
+                intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows})
+                FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
+                Exit Sub
+            End If
+            dtRankFilter = dtRank.Select(strFilter).CopyToDataTable
+            If strFilter.Contains("[*]") = False Then   ' Don't add from dtrOverflow if the filter is already dealing with membership in that table (or not) via the "*" field
+                ' Apply the filter to the dtOverflow and add in any items that satisfy the conditions but aren't already selected
+                Dim drRows As DataRow() = dtOverflow.Select(strFilter)
+                For Each row As DataRow In drRows
+                    Dim strId As String = row("ID").ToString
+                    Dim strName As String = row("Name").ToString
+                    Dim dr As DataRow() = dtRankFilter.Select("[ID]='" & strId & "' AND [Name]='" & strName & "'")
+                    If dr.Count = 0 Then
+                        ' Get the associated datarow from dtRank and force it into dtRankFilter
+                        Dim dr2 As DataRow() = dtRank.Select("[ID]='" & strId & "' AND [Name]='" & strName & "'")
+                        If dr2.Count <> 0 Then
+                            dtRankFilter.ImportRow(dr2(0))
+                        End If
+                    End If
+                Next
+            End If
+            
+            Dim dv As DataView = New DataView(dtRankFilter)
+            dv.Sort = strOrderBy
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dv})
+            intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows & " (filter active)"})
+            FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
+            Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
+
+        Catch ex As Exception
+            If ex.Message = "The source contains no DataRows." Then
+                MessageBox.Show("The search returned 0 records." & Environment.NewLine & Environment.NewLine & _
+                                "Query: " & Environment.NewLine & strFilter, "Search Returned No Results", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Me.Invoke(New MyClickDelegate(AddressOf btnSearch_Click), New Object() {btnSearch, EventArgs.Empty})
+            Else
+                ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Filter: " & strFilter & Environment.NewLine & "Order: " & strOrderBy)
+            End If
+        End Try
+    End Sub
 End Class

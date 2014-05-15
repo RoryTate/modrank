@@ -56,6 +56,8 @@ Partial Class frmMain
         Me.lblpb = New System.Windows.Forms.Label()
         Me.pb = New System.Windows.Forms.ProgressBar()
         Me.grpProgress = New System.Windows.Forms.GroupBox()
+        Me.btnSearch = New System.Windows.Forms.Button()
+        Me.lblRecordCount = New System.Windows.Forms.Label()
         CType(Me.DataGridView1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.gpLegend.SuspendLayout()
         CType(Me.pic3, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -110,7 +112,7 @@ Partial Class frmMain
         DataGridViewCellStyle3.BackColor = System.Drawing.Color.White
         Me.DataGridView1.RowsDefaultCellStyle = DataGridViewCellStyle3
         Me.DataGridView1.Size = New System.Drawing.Size(500, 564)
-        Me.DataGridView1.TabIndex = 10
+        Me.DataGridView1.TabIndex = 13
         Me.DataGridView1.Visible = False
         '
         'txtEmail
@@ -119,7 +121,7 @@ Partial Class frmMain
         Me.txtEmail.Location = New System.Drawing.Point(74, 42)
         Me.txtEmail.Name = "txtEmail"
         Me.txtEmail.Size = New System.Drawing.Size(202, 22)
-        Me.txtEmail.TabIndex = 3
+        Me.txtEmail.TabIndex = 4
         '
         'lblEmail
         '
@@ -128,7 +130,7 @@ Partial Class frmMain
         Me.lblEmail.Location = New System.Drawing.Point(10, 45)
         Me.lblEmail.Name = "lblEmail"
         Me.lblEmail.Size = New System.Drawing.Size(37, 13)
-        Me.lblEmail.TabIndex = 2
+        Me.lblEmail.TabIndex = 3
         Me.lblEmail.Text = "Email:"
         '
         'lblPassword
@@ -138,7 +140,7 @@ Partial Class frmMain
         Me.lblPassword.Location = New System.Drawing.Point(9, 72)
         Me.lblPassword.Name = "lblPassword"
         Me.lblPassword.Size = New System.Drawing.Size(59, 13)
-        Me.lblPassword.TabIndex = 4
+        Me.lblPassword.TabIndex = 5
         Me.lblPassword.Text = "Password:"
         '
         'ElementHost1
@@ -148,7 +150,7 @@ Partial Class frmMain
         Me.ElementHost1.Location = New System.Drawing.Point(74, 68)
         Me.ElementHost1.Name = "ElementHost1"
         Me.ElementHost1.Size = New System.Drawing.Size(202, 22)
-        Me.ElementHost1.TabIndex = 5
+        Me.ElementHost1.TabIndex = 6
         Me.ElementHost1.Text = "ElementHost1"
         Me.ElementHost1.Child = Nothing
         '
@@ -171,7 +173,7 @@ Partial Class frmMain
         Me.ElementHost2.Location = New System.Drawing.Point(12, 104)
         Me.ElementHost2.Name = "ElementHost2"
         Me.ElementHost2.Size = New System.Drawing.Size(477, 554)
-        Me.ElementHost2.TabIndex = 9
+        Me.ElementHost2.TabIndex = 12
         Me.ElementHost2.Text = "ElementHost2"
         Me.ElementHost2.Child = Nothing
         '
@@ -184,7 +186,7 @@ Partial Class frmMain
         Me.cmbWeight.Location = New System.Drawing.Point(368, 68)
         Me.cmbWeight.Name = "cmbWeight"
         Me.cmbWeight.Size = New System.Drawing.Size(121, 21)
-        Me.cmbWeight.TabIndex = 8
+        Me.cmbWeight.TabIndex = 10
         '
         'lblWeights
         '
@@ -193,7 +195,7 @@ Partial Class frmMain
         Me.lblWeights.Location = New System.Drawing.Point(293, 72)
         Me.lblWeights.Name = "lblWeights"
         Me.lblWeights.Size = New System.Drawing.Size(73, 13)
-        Me.lblWeights.TabIndex = 6
+        Me.lblWeights.TabIndex = 9
         Me.lblWeights.Text = "Weights List:"
         '
         'chkSession
@@ -227,7 +229,7 @@ Partial Class frmMain
         Me.gpLegend.Location = New System.Drawing.Point(13, 13)
         Me.gpLegend.Name = "gpLegend"
         Me.gpLegend.Size = New System.Drawing.Size(835, 75)
-        Me.gpLegend.TabIndex = 10
+        Me.gpLegend.TabIndex = 11
         Me.gpLegend.TabStop = False
         Me.gpLegend.Text = "Legend (hover over each entry for more details)"
         Me.gpLegend.Visible = False
@@ -358,7 +360,7 @@ Partial Class frmMain
         Me.btnEditWeights.Location = New System.Drawing.Point(368, 42)
         Me.btnEditWeights.Name = "btnEditWeights"
         Me.btnEditWeights.Size = New System.Drawing.Size(121, 23)
-        Me.btnEditWeights.TabIndex = 7
+        Me.btnEditWeights.TabIndex = 8
         Me.btnEditWeights.Text = "&Edit Weights"
         Me.btnEditWeights.UseVisualStyleBackColor = True
         '
@@ -389,9 +391,30 @@ Partial Class frmMain
         Me.grpProgress.Location = New System.Drawing.Point(110, 208)
         Me.grpProgress.Name = "grpProgress"
         Me.grpProgress.Size = New System.Drawing.Size(277, 84)
-        Me.grpProgress.TabIndex = 13
+        Me.grpProgress.TabIndex = 14
         Me.grpProgress.TabStop = False
         Me.grpProgress.Visible = False
+        '
+        'btnSearch
+        '
+        Me.btnSearch.Location = New System.Drawing.Point(339, 13)
+        Me.btnSearch.Name = "btnSearch"
+        Me.btnSearch.Size = New System.Drawing.Size(150, 23)
+        Me.btnSearch.TabIndex = 7
+        Me.btnSearch.Text = "&Activate Search/Filter"
+        Me.btnSearch.UseVisualStyleBackColor = True
+        '
+        'lblRecordCount
+        '
+        Me.lblRecordCount.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblRecordCount.ForeColor = System.Drawing.SystemColors.ControlText
+        Me.lblRecordCount.Location = New System.Drawing.Point(282, 84)
+        Me.lblRecordCount.Name = "lblRecordCount"
+        Me.lblRecordCount.Size = New System.Drawing.Size(207, 13)
+        Me.lblRecordCount.TabIndex = 15
+        Me.lblRecordCount.Text = "Number of Rows:"
+        Me.lblRecordCount.TextAlign = System.Drawing.ContentAlignment.MiddleRight
+        Me.lblRecordCount.Visible = False
         '
         'frmMain
         '
@@ -399,6 +422,8 @@ Partial Class frmMain
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.BackColor = System.Drawing.SystemColors.Control
         Me.ClientSize = New System.Drawing.Size(501, 670)
+        Me.Controls.Add(Me.lblRecordCount)
+        Me.Controls.Add(Me.btnSearch)
         Me.Controls.Add(Me.grpProgress)
         Me.Controls.Add(Me.btnEditWeights)
         Me.Controls.Add(Me.chkSession)
@@ -459,5 +484,7 @@ Partial Class frmMain
     Friend WithEvents lblpb As System.Windows.Forms.Label
     Public WithEvents pb As System.Windows.Forms.ProgressBar
     Friend WithEvents grpProgress As System.Windows.Forms.GroupBox
+    Friend WithEvents btnSearch As System.Windows.Forms.Button
+    Friend WithEvents lblRecordCount As System.Windows.Forms.Label
 
 End Class

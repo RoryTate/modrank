@@ -77,7 +77,7 @@ Module mdlSettings
 
     Public Sub ErrorHandler(ByVal strName As String, ByVal ex As Exception, Optional ByVal strExtraText As String = "")
         Dim strError As String = "Error in " & strName & ": " & Environment.NewLine & ex.Message & IIf(strExtraText <> "", Environment.NewLine & Environment.NewLine & strExtraText, "")
-        MessageBox.Show(strError, "ModRank", MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly)
+        MessageBox.Show(strError, "ModRank", MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1)
         WriteToLog(strError)
     End Sub
 

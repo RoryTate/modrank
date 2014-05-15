@@ -22,6 +22,7 @@ Public Class FullItem
     Public Property ExplicitSuffixMods As New CloneableList(Of FullMod)
     Public Property OtherSolutions As Boolean = False       ' True if there are other solutions to the mod distribution
     Public Property ImplicitMods As New CloneableList(Of FullMod)
+    Public Property Quality As Byte = 0
     Public Property Corrupted As Boolean
     Public Property Rank As Integer
     Public Property Percentile As Single

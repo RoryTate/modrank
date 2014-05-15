@@ -62,7 +62,7 @@ namespace POEApi.Model
     {
         public RingRunner()
             : base(GearType.Ring, "Iron Ring", "Coral Ring", "Paua Ring", "Gold Ring", "Ruby Ring", "Sapphire Ring", "Topaz Ring", "Diamond Ring", "Moonstone Ring", "Prismatic Ring", "Amethyst Ring",
-                                  "Two-Stone Ring")
+                                  "Two-Stone Ring", "Unset Ring")
         {
             incompatibleTypes = new List<string>() { "Ringmail" };
         }
