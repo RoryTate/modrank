@@ -472,6 +472,8 @@ Public Class frmFilter
                     Continue For
                 ElseIf strElement(1).CompareMultiple(StringComparison.Ordinal, "[Number of Prefixes]", "[Number of Suffixes]", "[Number of Implicits]", "[Total Number of Explicits]") Then
                     Me.Controls("txtText" & intIndex).Text = strElement(3)
+                ElseIf strElement(1).CompareMultiple(StringComparison.Ordinal, "[Implicit Type]") Then
+                    Me.Controls("txtText" & intIndex).Text = strElement(3).Substring(1, strElement(3).Length - 2)
                 ElseIf dtRank.Columns.Contains(strElement(1).Substring(1, strElement(1).Length - 2)) = True AndAlso _
                     dtRank.Columns(strElement(1).Substring(1, strElement(1).Length - 2)).DataType = System.Type.GetType("System.String") Then
                     If strElement(2) = "LIKE" Then
