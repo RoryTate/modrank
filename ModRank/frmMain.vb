@@ -47,10 +47,6 @@ Public Class frmMain
     Public Delegate Sub MyClickDelegate(sender As Object, e As EventArgs)
 
     Public blRepopulated As Boolean = False
-    Public strFilter As String = ""
-    Public strOrderBy As String = ""
-
-
 
     Private Shared m_currentCharacter As Character = Nothing
 
@@ -87,8 +83,8 @@ Public Class frmMain
 
     Private Sub frmMain_Activated(sender As Object, e As EventArgs) Handles Me.Activated
         If blRepopulated = False Then Exit Sub
-        ' Pull down the combo box, since the user will likely want to select their new weights file to use
-        cmbWeight.DroppedDown = True
+        ' Pull down the combo box, since the user will likely want to select their new weights file to use, but only if we aren't repopulating
+        If RecalculateThread.IsAlive = False Then cmbWeight.DroppedDown = True
         blRepopulated = False
     End Sub
 
@@ -219,6 +215,12 @@ Public Class frmMain
             dtRank.Columns.Add("Link", GetType(Byte))
             dtRank.Columns.Add("Qal", GetType(Byte))
             dtRank.Columns.Add("Crpt", GetType(Boolean))
+            dtRank.Columns.Add("Tot1", GetType(Single))
+            dtRank.Columns.Add("Tot2", GetType(Single))
+            dtRank.Columns.Add("Tot3", GetType(Single))
+            dtRank.Columns.Add("Tot4", GetType(Single))
+            dtRank.Columns.Add("Tot5", GetType(Single))
+            dtRank.Columns.Add("Tot6", GetType(Single))
             dtRank.Columns.Add("pft1", GetType(String))
             dtRank.Columns.Add("pt1", GetType(String))
             dtRank.Columns.Add("pt12", GetType(String))
@@ -348,7 +350,7 @@ Public Class frmMain
         WPFPassword.Background = New System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(ctlColor.A, ctlColor.R, ctlColor.G, ctlColor.B))
     End Sub
 
-    Public Sub PopulateWeightsComboBox(strSelection As String)
+    Public Sub PopulateWeightsComboBox(strSelection As String, Optional blReload As Boolean = False)
         Try
             cmbWeight.Items.Add("Default")
             Dim dir = Application.StartupPath
@@ -364,6 +366,16 @@ Public Class frmMain
             Else
                 cmbWeight.SelectedIndex = 0
             End If
+
+            If blReload Then
+                dtWeights.Clear()
+                dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & strSelection & ".csv")
+                ' Recalculate all the rankings based on the new weights
+                RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
+                RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
+                RecalculateThread.Start()
+            End If
+
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
@@ -552,6 +564,10 @@ Public Class frmMain
 
     Private Sub DataGridRefresh()
         Me.DataGridView1.Refresh()
+    End Sub
+
+    Private Sub DataGridClearSelection()
+        Me.DataGridView1.ClearSelection()
     End Sub
 
     Private Sub SortDataGridView()
@@ -1698,15 +1714,6 @@ AddMod2:
             dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & UserSettings("Weight") & ".csv")
 
             If DataGridView1.Visible = True Then
-                grpProgress.Left = (Me.Width - grpProgress.Width) / 2
-                grpProgress.Top = (Me.Height - grpProgress.Height) / 2
-                pb.Minimum = 1
-                pb.Maximum = CInt((FullInventory.Count + TempInventory.Count) / 10)
-                pb.Value = 1
-                pb.Step = 1
-                grpProgress.Visible = True
-                pb.Visible = True
-                lblpb.Visible = True
                 ' Recalculate all the rankings based on the new weights
                 RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
                 RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
@@ -1719,7 +1726,7 @@ AddMod2:
     End Sub
 
     Public Sub PBPerformStep()
-        pb.PerformStep()
+        pb.PerformStep() : pb.Refresh()
     End Sub
 
     Public Sub PBClose()
@@ -1728,15 +1735,31 @@ AddMod2:
         lblpb.Visible = False
     End Sub
 
+    Public Sub SetPBDefaults()
+        grpProgress.Left = (Me.Width - grpProgress.Width) / 2
+        grpProgress.Top = (Me.Height - grpProgress.Height) / 2
+        pb.Minimum = 1
+        pb.Maximum = CInt((FullInventory.Count + TempInventory.Count) / 10)
+        pb.Value = 1
+        pb.Step = 1
+        grpProgress.Visible = True
+        pb.Visible = True
+        lblpb.Visible = True
+    End Sub
+
     Public Sub RecalculateAllRankings()
         Try
             ' Full speed ahead with the full recalculating!
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", False})
+            Me.Invoke(New MyDelegate(AddressOf SetPBDefaults))
+            EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", False})
+            Dim blFilter As Boolean = IIf(strFilter <> "", True, False)
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", False})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", ""})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", True})
+            Application.DoEvents()
             Dim lngCounter As Long = 0
             For Each mylist In {FullInventory, TempInventory}
                 Dim strList As String = ""
@@ -1775,7 +1798,6 @@ AddMod2:
                     lngCounter += 1
                     If lngCounter Mod 10 = 0 Then
                         Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
-                        'Application.DoEvents()
                     End If
                 Next
             Next
@@ -1785,21 +1807,23 @@ AddMod2:
             AddToDataTable(TempInventory, dtOverflow, True, "Overflow Inventory Table")
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
-            bytColumns = CByte(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns, "Count"}).ToString)
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns(bytColumns - 1), "Visible", False})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns(bytColumns - 2), "Visible", False})
+            Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("%").DefaultCellStyle, "Format", "n1"})
             Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
             Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
-            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Rows(0), "Selected", True})
+
+            If blFilter Then ApplyFilter()
+
             Dim FirstCell As DataGridViewCell
             FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
             'frmPB.Close() : frmPB.Dispose()
             Me.Invoke(New MyDelegate(AddressOf PBClose))
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
+            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", False})
             Application.DoEvents()
             ' Sometimes the wait cursor property doesn't get unset for the datagridview, perhaps because it is not visible for some time?
@@ -1809,9 +1833,10 @@ AddMod2:
 
         Catch ex As Exception
             Me.Invoke(New MyDelegate(AddressOf PBClose))
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
+            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", False})
 
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
@@ -1828,8 +1853,9 @@ AddMod2:
 
     Private Sub DataGridView1_SelectionChanged(sender As Object, e As EventArgs) Handles DataGridView1.SelectionChanged
         If DataGridView1.CurrentCell Is Nothing Then Exit Sub
-        If DataGridView1.Cursor <> Cursors.Default Then DataGridView1.Cursor = Cursors.Default
-        If DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("prefix") Or DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("suffix") Then DataGridView1.ClearSelection()
+        If DataGridView1.Cursor <> Cursors.Default Then Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Cursor", Cursors.Default})
+        If DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("prefix") Or _
+            DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("suffix") Then Me.BeginInvoke(New MyDelegate(AddressOf DataGridClearSelection))
     End Sub
 
     Private Sub chkSession_CheckedChanged(sender As Object, e As EventArgs) Handles chkSession.CheckedChanged
@@ -1895,7 +1921,24 @@ AddMod2:
                     End If
                 Next
             End If
-            
+            If strRawFilter.Contains("[Mod Total Value]") Then     ' This has a [Mod Total Value] component
+                For i = 0 To Math.Min(lstTotalTypes.Count - 1, 5)
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i + 1), "Visible", True})
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i + 1), "Width", 33})
+                    For Each row As DataRow In dtRankFilter.Rows
+                        Dim intTotal As Integer = 0
+                        Dim strType As String = lstTotalTypes(i)
+                        For Each strField In {"pt1", "pt12", "pt2", "pt22", "pt3", "pt32", "st1", "st12", "st2", "st22", "st3", "st32", "it1", "it2", "it3"}
+                            intTotal += IIf(row(strField) = strType, row(strField.Replace("t", "v")).ToString, 0)
+                        Next
+                        row("Tot" & i + 1) = intTotal
+                    Next
+                Next
+            Else
+                For i = 1 To 6
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i), "Visible", False})
+                Next
+            End If
             Dim dv As DataView = New DataView(dtRankFilter)
             dv.Sort = strOrderBy
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dv})

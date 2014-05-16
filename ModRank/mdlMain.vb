@@ -10,6 +10,10 @@ Module mdlMain
     Public dtWeights As DataTable = New DataTable()
     Public bytColumns As Byte = 0       ' The max number of columns displayed in the datagridview
     Public strD As String = ";"     ' The delimiter used in the filter...use one that will not be likely to appear in SQL
+    Public strFilter As String = ""
+    Public strOrderBy As String = ""
+    Public strRawFilter As String = ""
+    Public lstTotalTypes As New List(Of String)
 
     ' RCPD = Read Control Property Delegate (used a lot so abbreviated)
     Public Delegate Function RCPD(ByVal MyControl As Object, ByVal MyProperty As Object) As String
@@ -97,9 +101,10 @@ Module mdlMain
         End Try
     End Function
 
-    Public Function ConvertFilterToSQL(strFilter As String) As String
+    Public Function ConvertFilterToSQL(strRawFilter As String) As String
         Dim sb As New System.Text.StringBuilder
-        Dim strLines() As String = strFilter.Split(vbCrLf)
+        Dim strLines() As String = strRawFilter.Split(vbCrLf)
+        lstTotalTypes.Clear()
         For Each strLine In strLines
             Dim strElement() As String = strLine.Split(strD)
             If strElement(1).CompareMultiple(StringComparison.Ordinal, "[Prefix Type]", "[Suffix Type]", "[Number of Prefixes]", _
@@ -174,6 +179,7 @@ Module mdlMain
                                   "IIF([it3]=" & strElement(4) & ",[iv3],0)" & _
                                   strElement(2) & strElement(3) & strElement(5) & strElement(6))
                         End If
+                        lstTotalTypes.Add(strElement(4).Substring(1, strElement(4).Length - 2))
                         Continue For
                 End Select
             End If

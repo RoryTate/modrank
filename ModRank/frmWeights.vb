@@ -53,12 +53,11 @@
 
             TableToCSV(dtTemp, sfd.FileName, True)
 
-            'frmMain.dtWeights.Clear()
-            'frmMain.dtWeights = LoadCSVtoDataTable(sfd.FileName)
-
+            Dim blReload As Boolean = False
             Dim strWeight As String = frmMain.cmbWeight.Text
             frmMain.cmbWeight.Items.Clear()
-            frmMain.PopulateWeightsComboBox(strWeight)
+            If System.IO.Path.GetFileNameWithoutExtension(sfd.FileName).ToLower = "weights-" & strWeight.ToLower Then blReload = True ' If we have saved over the currently open weight file, then reload
+            frmMain.PopulateWeightsComboBox(strWeight, blReload)
 
             frmMain.blRepopulated = True
 

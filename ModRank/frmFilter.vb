@@ -81,15 +81,15 @@ Public Class frmFilter
             btnTemp.PerformClick()
         Next
         txtOrderBy.Text = ""
-        If frmMain.strFilter.Length <> 0 Then frmMain.SetFilter("")
+        If strFilter.Length <> 0 Then frmMain.SetFilter("")
         Me.Close()
     End Sub
 
     Private Sub cmdActivate_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmdActivate.Click
         Try
-            Dim strTemp As String = CreateFilter()
-            If strTemp <> "" Then
-                frmMain.SetFilter(strTemp)
+            strRawFilter = CreateFilter()
+            If strRawFilter <> "" Then
+                frmMain.SetFilter(strRawFilter)
                 Me.Close()
             End If
         Catch ex As Exception
