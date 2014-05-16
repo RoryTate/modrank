@@ -43,7 +43,7 @@ Public Class frmMain
 
     Private Delegate Sub FillCredentialsDelegate()
     Public Delegate Sub MyDelegate()
-    Public Delegate Function MyDelegateFunction()
+    Public Delegate Function MyDelegateFunction() As Object
     Public Delegate Sub MyClickDelegate(sender As Object, e As EventArgs)
 
     Public blRepopulated As Boolean = False
@@ -83,8 +83,9 @@ Public Class frmMain
 
     Private Sub frmMain_Activated(sender As Object, e As EventArgs) Handles Me.Activated
         If blRepopulated = False Then Exit Sub
-        ' Pull down the combo box, since the user will likely want to select their new weights file to use, but only if we aren't repopulating
-        If RecalculateThread.IsAlive = False Then cmbWeight.DroppedDown = True
+        ' Pull down the combo box, since the user will likely want to select their new weights file to use, but only if we aren't recalculating
+        If IsNothing(RecalculateThread) = False AndAlso RecalculateThread.IsAlive = True Then Exit Sub
+        cmbWeight.DroppedDown = True
         blRepopulated = False
     End Sub
 
@@ -128,7 +129,7 @@ Public Class frmMain
                 Dim newImage2 As New Bitmap(newImage1.Width, newImage1.Height)
                 gr = Graphics.FromImage(newImage2)
                 gr.DrawImage(newImage1, New Rectangle(0, 0, newImage1.Width, newImage1.Height), 0, 0, newImage1.Width, newImage1.Height, Drawing.GraphicsUnit.Pixel, att)
-                Dim MyPic As PictureBox = Me.gpLegend.Controls("pic" & x)
+                Dim MyPic As PictureBox = CType(Me.gpLegend.Controls("pic" & x), PictureBox)
                 MyPic.Image = newImage2
             Next
 
@@ -184,12 +185,12 @@ Public Class frmMain
                 newRow("Categories") = dtRow("Categories")
                 newRow("Description") = dtRow("Description")
                 newRow("Value") = dtRow("Value")
-                newRow("MinV") = IIf(IsDBNull(dtRow("MinV")) Or dtRow("MinV") = "", 0, dtRow("MinV"))
-                newRow("MaxV") = IIf(IsDBNull(dtRow("MaxV")) Or dtRow("MaxV") = "", 0, dtRow("MaxV"))
-                newRow("MinV2") = IIf(IsDBNull(dtRow("MinV2")) Or dtRow("MinV2") = "", 0, dtRow("MinV2"))
-                newRow("MaxV2") = IIf(IsDBNull(dtRow("MaxV2")) Or dtRow("MaxV2") = "", 0, dtRow("MaxV2"))
+                newRow("MinV") = IIf(IsDBNull(dtRow("MinV")) Or dtRow("MinV") Is "", 0, dtRow("MinV"))
+                newRow("MaxV") = IIf(IsDBNull(dtRow("MaxV")) Or dtRow("MaxV") Is "", 0, dtRow("MaxV"))
+                newRow("MinV2") = IIf(IsDBNull(dtRow("MinV2")) Or dtRow("MinV2") Is "", 0, dtRow("MinV2"))
+                newRow("MaxV2") = IIf(IsDBNull(dtRow("MaxV2")) Or dtRow("MaxV2") Is "", 0, dtRow("MaxV2"))
                 newRow("Name") = dtRow("Name")
-                newRow("Level") = IIf(IsDBNull(dtRow("Level")) Or dtRow("Level") = "", 0, dtRow("Level"))
+                newRow("Level") = IIf(IsDBNull(dtRow("Level")) Or dtRow("Level") Is "", 0, dtRow("Level"))
                 newRow("Prefix/Suffix") = dtRow("Prefix/Suffix")
                 For i = 10 To 28
                     newRow(i) = IIf(dtRow(i).ToString.IndexOf("Yes", StringComparison.OrdinalIgnoreCase) > -1, True, False)
@@ -298,7 +299,7 @@ Public Class frmMain
             statusController = New ModRank.frmMain.StatusController(Me.statusBox)
 
             txtEmail.Text = UserSettings("AccountLogin")
-            chkSession.Checked = UserSettings("UseSessionID")
+            chkSession.Checked = CBool(UserSettings("UseSessionID"))
             blFormChanged = String.IsNullOrEmpty(Settings.UserSettings("AccountPassword"))
             If blFormChanged = False Then WPFPassword.Password = String.Empty.PadLeft(8)
             AddHandler WPFPassword.PasswordChanged, AddressOf PasswordChanged
@@ -340,11 +341,11 @@ Public Class frmMain
         End Try
     End Sub
 
-    Public Sub PasswordChanged()
+    Public Sub PasswordChanged(sender As Object, e As System.Windows.RoutedEventArgs)
         blFormChanged = True
     End Sub
 
-    Public Sub PasswordEnabledChanged()
+    Public Sub PasswordEnabledChanged(sender As Object, e As System.Windows.DependencyPropertyChangedEventArgs)
         If WPFPassword.IsEnabled = True Then Exit Sub
         Dim ctlColor As Color = SystemColors.Control
         WPFPassword.Background = New System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(ctlColor.A, ctlColor.R, ctlColor.G, ctlColor.B))
@@ -370,10 +371,12 @@ Public Class frmMain
             If blReload Then
                 dtWeights.Clear()
                 dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & strSelection & ".csv")
-                ' Recalculate all the rankings based on the new weights
-                RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
-                RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
-                RecalculateThread.Start()
+                If dtRank.Rows.Count <> 0 Then
+                    ' Recalculate all the rankings based on the new weights
+                    RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
+                    RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
+                    RecalculateThread.Start()
+                End If
             End If
 
         Catch ex As Exception
@@ -515,7 +518,7 @@ Public Class frmMain
             Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
             Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
             Dim FirstCell As DataGridViewCell
-            FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "WindowState", FormWindowState.Maximized})
@@ -653,24 +656,24 @@ Public Class frmMain
                     Continue For
                 End If
                 newFullItem.TypeLine = myGear.TypeLine.ToString
-                newFullItem.H = myGear.H
-                newFullItem.W = myGear.W
+                newFullItem.H = CByte(myGear.H)
+                newFullItem.W = CByte(myGear.W)
                 newFullItem.Name = myGear.Name
                 newFullItem.Rarity = myGear.Rarity
                 For i = 0 To myGear.Requirements.Count - 1
                     If myGear.Requirements(i).Name.ToLower = "level" Then
-                        newFullItem.Level = GetNumeric(myGear.Requirements(i).Value)
+                        newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
                         newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
                         Exit For ' We don't care about any other requirements, so exit the loop
                     End If
                 Next
-                newFullItem.Sockets = myGear.NumberOfSockets
+                newFullItem.Sockets = CByte(myGear.NumberOfSockets)
                 For i = 6 To 0 Step -1
                     If myGear.IsLinked(i) Then
-                        newFullItem.Links = IIf(i = 1, 0, i) : Exit For
+                        newFullItem.Links = CByte(IIf(i = 1, 0, i)) : Exit For
                     End If
                 Next
-                If myGear.IsQuality Then newFullItem.Quality = myGear.Quality
+                If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
                 newFullItem.Corrupted = myGear.Corrupted
                 If Not IsNothing(myGear.Implicitmods) Then
                     For i = 0 To myGear.Implicitmods.Count - 1
@@ -726,31 +729,31 @@ Public Class frmMain
 
     Public Sub ReorderExplicitMods(ByRef myGear As Gear)
         Try
-            Dim bytCounter As Byte = myGear.Explicitmods.Count - 1, strType As String = ""
+            Dim intCounter As Integer = myGear.Explicitmods.Count - 1, strType As String = ""
             If Not IsNothing(myGear.Explicitmods) Then
                 For i = 0 To myGear.Explicitmods.Count - 1      ' Run the loop to put increased rarity at the end first, since it can be a prefix or suffix, and is the most important (Note: must go to the end of the loop, to decrement bytCounter)
                     strType = GetChars(myGear.Explicitmods(i))
                     If strType.CompareMultiple(StringComparison.OrdinalIgnoreCase, "% increased Rarity of Items found") = True Then
-                        Dim strTemp As String = myGear.Explicitmods(bytCounter)
-                        myGear.Explicitmods(bytCounter) = myGear.Explicitmods(i)
+                        Dim strTemp As String = myGear.Explicitmods(intCounter)
+                        myGear.Explicitmods(intCounter) = myGear.Explicitmods(i)
                         myGear.Explicitmods(i) = strTemp
-                        bytCounter -= 1
+                        intCounter -= 1
                         Exit For
                     End If
                 Next
                 For i = 0 To myGear.Explicitmods.Count - 1      ' Put combined mods -- and mods that get dragged into the combinations -- at the end, so that our looping search goes quicker
-                    If i >= bytCounter Then Exit For
+                    If i >= intCounter Then Exit For
                     ' Use a do loop to reorder, since the mod swap might initially exchange a mod at the last spot that is also in this list
                     Do While GetChars(myGear.Explicitmods(i)).CompareMultiple(StringComparison.OrdinalIgnoreCase, "+ to Accuracy Rating", "% increased Block and Stun Recovery", _
                                                "% increased Accuracy Rating", "+ to maximum Mana", "% increased Light Radius", "% increased Armour", _
                                                "% increased Armour and Energy Shield", "% increased Armour and Evasion", "% increased Energy Shield", _
                                                "% increased Evasion and Energy Shield", "% increased Evasion Rating", "% increased Physical Damage", _
                                                "% increased Spell Damage") = True
-                        Dim strTemp As String = myGear.Explicitmods(bytCounter)
-                        myGear.Explicitmods(bytCounter) = myGear.Explicitmods(i)
+                        Dim strTemp As String = myGear.Explicitmods(intCounter)
+                        myGear.Explicitmods(intCounter) = myGear.Explicitmods(i)
                         myGear.Explicitmods(i) = strTemp
-                        If i >= bytCounter Then Exit For
-                        bytCounter -= 1
+                        If i >= intCounter Then Exit For
+                        intCounter -= 1
                     Loop
                 Next
             End If
@@ -763,13 +766,13 @@ Public Class frmMain
         ' This function looks to see if the mod entry selected from weights-*.csv is a combined mod, and if successful will return the 
         ' index/position of the other mod from the explicitmods list
         Dim strMod As String = ""
-        If newFullMod.Type1 = result(j)("ExportField") Then
-            strMod = result(j)("ExportField2")
+        If newFullMod.Type1 Is result(j)("ExportField") Then
+            strMod = result(j)("ExportField2").ToString
         Else
-            strMod = result(j)("ExportField")
+            strMod = result(j)("ExportField").ToString
         End If
         For k = i To myGear.Explicitmods.Count - 1  ' Look ahead at upcoming mods to find the position for its "companion" mod
-            If GetChars(myGear.Explicitmods(k)) = strMod Then Return k
+            If GetChars(myGear.Explicitmods(k)) = strMod Then Return CByte(k)
         Next
         Return 0
     End Function
@@ -777,7 +780,7 @@ Public Class frmMain
     Public Sub EvaluateExplicitMods(mygear As Gear, ByRef newfullitem As FullItem, Optional blForceFullSearch As Boolean = False, Optional blAllowLegacy As Boolean = False)
         Try
             Dim result() As DataRow = Nothing
-            Dim ModList As New List(Of DataRow), ModPos As New Dictionary(Of String, Byte)
+            Dim ModList As New List(Of DataRow), ModPos As New Dictionary(Of String, Integer)
             Dim strField As String = "", strField2 As String = "", strAffix As String = ""
             Dim blCombinedModsAdded As Boolean = False
             For i = 0 To mygear.Explicitmods.Count - 1
@@ -785,17 +788,17 @@ Public Class frmMain
                 ModPos.Add(strField.ToLower, i)
                 result = dtWeights.Select("ExportField = '" & strField & "' OR ExportField2 = '" & strField & "'")
                 For j = 0 To result.Count - 1
-                    If result(j)("ExportField2") <> "" Then ' Do we need to check the second mod for a combined mod?
-                        strField2 = IIf(strField = result(j)("ExportField2"), result(j)("ExportField"), result(j)("ExportField2"))
+                    If result(j)("ExportField2").ToString <> "" Then ' Do we need to check the second mod for a combined mod?
+                        strField2 = IIf(strField = result(j)("ExportField2").ToString, result(j)("ExportField"), result(j)("ExportField2")).ToString
                         If mygear.Explicitmods.Find(Function(x) GetChars(x) = strField2) = "" Then Continue For ' The second mod isn't part of this item...move on
                         blCombinedModsAdded = True  ' If we added a combined mod, will want to run the 'exhaustive' search for more below, otherwise skip the second search
                     End If
                     If strField = "% increased Rarity of Items found" And GetNumeric(mygear.Explicitmods(i)) > 9 Then   ' Rarity has both prefix and suffix values, so add both to the mod list
                         blCombinedModsAdded = True      ' Update: Rather than trying to solve the whole thing here, just set our search to try both and let the recursion routine do the rest
                         Dim tmpResult As DataRow = DeepCopyDataRow(result(j))   ' Cannot do a shallow reference copy, or else we are unable to create separate ModList entries
-                        AddToModList(ModList, newfullitem, tmpResult, result(j)("Description") & ",Prefix")     ' We must distinguish our key names to provide the search routine a way to treat this as a "combined" mod
+                        AddToModList(ModList, newfullitem, tmpResult, result(j)("Description").ToString & ",Prefix")     ' We must distinguish our key names to provide the search routine a way to treat this as a "combined" mod
                         Dim tmpResult2 As DataRow = DeepCopyDataRow(result(j))  ' Do it again, as we don't want to affect dtWeights either
-                        AddToModList(ModList, newfullitem, tmpResult2, result(j)("Description") & ",Suffix")
+                        AddToModList(ModList, newfullitem, tmpResult2, result(j)("Description").ToString & ",Suffix")
                     Else
                         AddToModList(ModList, newfullitem, result(j))
                     End If
@@ -806,8 +809,8 @@ Public Class frmMain
             Next
             ' Our ModList now contains all of the possible "combined" mods that could have been assigned to this item (we have exhausted all of the branches)
             Dim ModStatsList As New Dictionary(Of String, DataRow)    ' Tranform the ModsList into one that includes the full value ranges and stats for the mod
-            Dim MaxIndex As New Dictionary(Of String, Byte)     ' This is used for the more complex search method
-            Dim RemoveFromModList As New List(Of Byte)
+            Dim MaxIndex As New Dictionary(Of String, Integer)     ' This is used for the more complex search method
+            Dim RemoveFromModList As New List(Of Integer)
             For Each row In ModList
                 Dim strOverrideDescription As String = ""
                 If row("Description").ToString.Contains("Base Item Found Rarity +%") Then
@@ -822,19 +825,19 @@ Public Class frmMain
                     '        strAffix = "Both"
                     'End Select
                     If row("Description").ToString.Contains(",") Then
-                        strOverrideDescription = row("Description").ToString.Split(",")(0)
-                        strAffix = row("Description").ToString.Split(",")(1)
+                        strOverrideDescription = row("Description").ToString.Split(CChar(","))(0)
+                        strAffix = row("Description").ToString.Split(CChar(","))(1)
                     End If
                 End If
                 Dim tempModResult As DataRow() = RunModResultQuery(newfullitem, row, strOverrideDescription, strAffix)
                 For j = 0 To tempModResult.Count - 1    ' The query returns all of the possible value ranges for this mod, restricted only by level (max)
-                    ModStatsList.Add(row("ExportField").ToString.ToLower & row("ExportField2").ToString.ToLower & j & IIf(strAffix <> "", "," & strAffix, ""), tempModResult(j))
+                    ModStatsList.Add(row("ExportField").ToString.ToLower & row("ExportField2").ToString.ToLower & j & IIf(strAffix <> "", "," & strAffix, "").ToString, tempModResult(j))
                 Next
                 If tempModResult.Count = 0 Then
                     ' We will remove this row from the modlist, since it doesn't return any results
                     RemoveFromModList.Add(ModList.IndexOf(row))
                 Else
-                    MaxIndex.Add(row("ExportField").ToString.ToLower & IIf(strAffix <> "", "," & strAffix, "") & row("ExportField2").ToString.ToLower, tempModResult.Count - 1)
+                    MaxIndex.Add(row("ExportField").ToString.ToLower & IIf(strAffix <> "", "," & strAffix, "").ToString & row("ExportField2").ToString.ToLower, tempModResult.Count - 1)
                 End If
             Next
             If RemoveFromModList.Count <> 0 Then
@@ -843,7 +846,7 @@ Public Class frmMain
                 Next
                 RemoveFromModList.RemoveRange(0, RemoveFromModList.Count)
             End If
-            Dim intRank As Integer = 0
+            Dim sngRank As Single = 0
             ' Use simple method if all the mods are independent and a 1-1 mapping exists, so we can set them in a quick, efficient and straightforward manner
             ' Also check the global boolean blForceFullSearch to see if we've called ourselves again because this method won't work
             If (blCombinedModsAdded = False And MaxIndex.Count = ModList.Count) And blForceFullSearch = False Then
@@ -860,32 +863,32 @@ Public Class frmMain
                     End If
                     newMod.Weight = CInt(ModList(i)("Weight").ToString)
                     'Dim temprow As New Dictionary(Of String, DataRow)
-                    Dim temprow = From mymod In ModStatsList Where mymod.Key.ToLower.Contains(newMod.Type1.ToLower) And mymod.Value("MinV") <= newMod.Value1 And mymod.Value("MaxV") >= newMod.Value1
+                    Dim temprow = From mymod In ModStatsList Where mymod.Key.ToLower.Contains(newMod.Type1.ToLower) And CSng(mymod.Value("MinV")) <= newMod.Value1 And CSng(mymod.Value("MaxV")) >= newMod.Value1
                     If newMod.MaxValue1 > 0 Then
-                        temprow = From mymod In ModStatsList Where mymod.Key.ToLower.Contains(newMod.Type1.ToLower) And mymod.Value("MinV") <= newMod.Value1 And mymod.Value("MinV2") >= newMod.Value1 _
-                                    And mymod.Value("MaxV2") <= newMod.MaxValue1 And mymod.Value("MaxV") >= newMod.MaxValue1
+                        temprow = From mymod In ModStatsList Where mymod.Key.ToLower.Contains(newMod.Type1.ToLower) And CSng(mymod.Value("MinV")) <= newMod.Value1 And CSng(mymod.Value("MinV2")) >= newMod.Value1 _
+                                    And CSng(mymod.Value("MaxV2")) <= newMod.MaxValue1 And CSng(mymod.Value("MaxV")) >= newMod.MaxValue1
                     End If
                     If temprow.Count = 0 Then
                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
-                        strAffix = RunModResultQuery(newfullitem, , ModList(i)("Description"))(0)("Prefix/Suffix")
-                        Dim sngMaxV As Single = ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV")
-                        RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), mygear.UniqueIDHash, mygear.Name, strAffix)
+                        strAffix = RunModResultQuery(newfullitem, , ModList(i)("Description").ToString)(0)("Prefix/Suffix").ToString
+                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
+                        RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), mygear.UniqueIDHash.ToString, mygear.Name, strAffix)
                         GoTo AddMod
                     End If
                     Dim strKey As String = temprow(temprow.Count - 1).Key.ToLower     ' Choose the last row to get the highest possible level, just like the combined algorithm does
-                    newMod.BaseLowerV1 = ModStatsList(strKey)("MinV").ToString
+                    newMod.BaseLowerV1 = CSng(ModStatsList(strKey)("MinV").ToString)
                     If newMod.MaxValue1 <> 0 And newMod.MaxValue1 <> Nothing Then ' This is a mod with range (i.e. 12-16 damage)
-                        newMod.BaseLowerMaxV1 = ModStatsList(strKey)("MaxV2").ToString
-                        newMod.BaseUpperV1 = ModStatsList(strKey)("MinV2").ToString
-                        newMod.BaseUpperMaxV1 = ModStatsList(strKey)("MaxV").ToString
+                        newMod.BaseLowerMaxV1 = CSng(ModStatsList(strKey)("MaxV2").ToString)
+                        newMod.BaseUpperV1 = CSng(ModStatsList(strKey)("MinV2").ToString)
+                        newMod.BaseUpperMaxV1 = CSng(ModStatsList(strKey)("MaxV").ToString)
                     Else
-                        newMod.BaseUpperV1 = ModStatsList(strKey)("MaxV").ToString
+                        newMod.BaseUpperV1 = CSng(ModStatsList(strKey)("MaxV").ToString)
                     End If
-                    newMod.MiniLvl = ModStatsList(strKey)("Level").ToString
+                    newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                     strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                    intRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, mygear.UniqueIDHash, mygear.Name, strAffix)
+                    sngRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, mygear.UniqueIDHash.ToString, mygear.Name, strAffix)
                     Dim sb As New System.Text.StringBuilder
-                    sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", intRank) & ") " & IIf(i = mygear.Explicitmods.Count - 1, "Final Rank", " (running total)" & vbCrLf))
+                    sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ") " & IIf(i = mygear.Explicitmods.Count - 1, "Final Rank", " (running total)" & vbCrLf).ToString)
                     AddExplanation(mygear.UniqueIDHash & mygear.Name, sb)
 
 AddMod:
@@ -907,16 +910,16 @@ AddMod:
                     EvaluateExplicitMods(mygear, newfullitem, True)   ' Call ourselves again, this time with the forcefullsearch boolean set to true
                     Exit Sub
                 End If
-                newfullitem.Rank = intRank
-                newfullitem.Percentile = CalculatePercentile(newfullitem).ToString("0.0")
+                newfullitem.Rank = sngRank
+                newfullitem.Percentile = CSng(CalculatePercentile(newfullitem).ToString("0.0"))
                 Exit Sub
             End If
             ' Note: Combined Mod Search Method begins here!
             ' If this is a combined mod, then we'll have to use a less efficient method.
-            Dim maxpos(ModList.Count - 1) As Byte, curpos(ModList.Count - 1) As Integer, bytPos As Byte = 0
+            Dim maxpos(ModList.Count - 1) As Integer, curpos(ModList.Count - 1) As Integer, intPos As Integer = 0
             For Each mykey In MaxIndex
-                maxpos(bytPos) = mykey.Value
-                bytPos += 1
+                maxpos(intPos) = mykey.Value
+                intPos += 1
             Next
             DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, 0, mygear, MaxIndex, ModPos, newfullitem, blAllowLegacy)
         Catch ex As Exception
@@ -934,12 +937,12 @@ AddMod:
                 End If
             End If
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "New Mod Description: " & MyRow("Description") & vbCrLf & _
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "New Mod Description: " & MyRow("Description").ToString & vbCrLf & _
                          "Current ModList Contents: " & String.Join(vbCrLf, ModList.[Select](Function(r) r("Description").ToString()).ToArray()))
         End Try
     End Sub
 
-    Public Function CalculateRank(newMod As FullMod, bytMaxIndex As Byte, strKey As String, strID As String, strName As String, strAffix As String, Optional strOverrideKey As String = "") As Integer
+    Public Function CalculateRank(newMod As FullMod, intMaxIndex As Integer, strKey As String, strID As String, strName As String, strAffix As String, Optional strOverrideKey As String = "") As Single
         Try
             ' Now let's calculate the score/rank...
             Dim sb As New System.Text.StringBuilder
@@ -971,27 +974,27 @@ AddMod:
             sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0}", newMod.Weight * 10) & vbTab & "(mod weight * 10) = (" & newMod.Weight & " * 10) = " & newMod.Weight * 10)
 
             ' Set the modlevelactual and modlevelmax for this mod
-            newMod.ModLevelActual = GetNumeric(strKey)
-            newMod.ModLevelMax = bytMaxIndex
+            newMod.ModLevelActual = CInt(GetNumeric(strKey))
+            newMod.ModLevelMax = intMaxIndex
 
             If newMod.Weight < 0 Then GoTo AddExplanationGoto
 
-            Dim intLevelRank As Integer = ((bytMaxIndex - GetNumeric(strKey)) * 10)       ' The amount lost because of not hitting the highest possible level for the mod
-            sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intLevelRank * -1) & vbTab & "(max mod level - mod level) * 10 = (" & bytMaxIndex & " - " & _
+            Dim intLevelRank As Integer = CInt((intMaxIndex - GetNumeric(strKey)) * 10)       ' The amount lost because of not hitting the highest possible level for the mod
+            sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intLevelRank * -1) & vbTab & "(max mod level - mod level) * 10 = (" & intMaxIndex & " - " & _
                       GetNumeric(strKey) & ") * 10 = " & intLevelRank)
 
             Dim intValueRank1 As Integer = 0                                                    ' The amount lost for not getting the maximum value for the first mod
             If newMod.BaseUpperV1 <> newMod.BaseLowerV1 Then
                 If newMod.MaxValue1 <> 0 And newMod.BaseUpperMaxV1 <> newMod.BaseLowerMaxV1 Then
                     Dim intValuePart1 As Integer = 0, intValuePart2 As Integer = 0
-                    intValuePart1 = Math.Round(((newMod.BaseUpperV1 - newMod.Value1) / (newMod.BaseUpperV1 - newMod.BaseLowerV1)) * bytModWeight1)
+                    intValuePart1 = CInt(Math.Round(((newMod.BaseUpperV1 - newMod.Value1) / (newMod.BaseUpperV1 - newMod.BaseLowerV1)) * bytModWeight1))
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intValuePart1 * -1) & vbTab & _
                               (newMod.BaseUpperV1 - newMod.Value1).ToString("0.#") & " below lower max of " & newMod.BaseUpperV1.ToString("0.#") & _
                               " (range: " & (newMod.BaseUpperV1 - newMod.BaseLowerV1).ToString("0.#") & ", weight: " & bytModWeight1.ToString("0.#") & ")")
                     sb.Append(vbCrLf & vbTab & "weight*(max-value)/range = " & bytModWeight1.ToString("0.#") & "*(" & _
                               newMod.BaseUpperV1 & "-" & newMod.Value1.ToString("0.#") & ")/" & (newMod.BaseUpperV1 - newMod.BaseLowerV1).ToString("0.#") & _
                               "=" & intValuePart1.ToString("0.#"))
-                    intValuePart2 = Math.Round(((newMod.BaseUpperMaxV1 - newMod.MaxValue1) / (newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1)) * bytModWeight2)
+                    intValuePart2 = CInt(Math.Round(((newMod.BaseUpperMaxV1 - newMod.MaxValue1) / (newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1)) * bytModWeight2))
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intValuePart2 * -1) & vbTab & _
                               newMod.BaseUpperMaxV1 - newMod.MaxValue1 & " below upper max of " & newMod.BaseUpperMaxV1.ToString("0.#") & _
                               " (range: " & newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1 & ", weight: " & bytModWeight2 & ")")
@@ -1000,14 +1003,14 @@ AddMod:
                               "=" & intValuePart2.ToString("0.#"))
                     intValueRank1 = intValuePart1 + intValuePart2
                 Else
-                    intValueRank1 = Math.Round(((newMod.BaseUpperV1 - newMod.Value1) / (newMod.BaseUpperV1 - newMod.BaseLowerV1)) * bytModWeight1)
+                    intValueRank1 = CInt(Math.Round(((newMod.BaseUpperV1 - newMod.Value1) / (newMod.BaseUpperV1 - newMod.BaseLowerV1)) * bytModWeight1))
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intValueRank1 * -1) & vbTab & (newMod.BaseUpperV1 - newMod.Value1).ToString("0.#") & " below max of " & newMod.BaseUpperV1.ToString("0.#") & " (range: " & (newMod.BaseUpperV1 - newMod.BaseLowerV1).ToString("0.#") & ", weight: " & bytModWeight1.ToString("0.#") & ")")
                     sb.Append(vbCrLf & vbTab & "weight*(max-value)/range = " & bytModWeight1.ToString("0.#") & "*(" & newMod.BaseUpperV1.ToString("0.#") & "-" & newMod.Value1.ToString("0.#") & ")/" & (newMod.BaseUpperV1 - newMod.BaseLowerV1).ToString("0.#") & "=" & intValueRank1.ToString("0.#"))
                 End If
             Else
                 If newMod.MaxValue1 <> 0 And newMod.BaseUpperMaxV1 <> newMod.BaseLowerMaxV1 Then
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", 0) & vbTab & "Value at max of " & newMod.BaseUpperV1 & " (range: 0)")
-                    intValueRank1 = Math.Round(((newMod.BaseUpperMaxV1 - newMod.MaxValue1) / (newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1)) * bytModWeight2)
+                    intValueRank1 = CInt(Math.Round(((newMod.BaseUpperMaxV1 - newMod.MaxValue1) / (newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1)) * bytModWeight2))
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intValueRank1 * -1) & vbTab & _
                               newMod.BaseUpperMaxV1 - newMod.MaxValue1 & " below upper max of " & newMod.BaseUpperMaxV1.ToString("0.#") & _
                               " (range: " & newMod.BaseUpperMaxV1 - newMod.BaseLowerMaxV1 & ", weight: " & bytModWeight2 & ")")
@@ -1025,7 +1028,7 @@ AddMod:
             Dim intValueRank2 As Integer = 0                                                    ' The amount lost for not getting the maximum value for the second mod
             If newMod.Type2.Length <> 0 Then
                 If newMod.BaseUpperV2 - newMod.BaseLowerV2 <> 0 Then
-                    intValueRank2 = Math.Round(((newMod.BaseUpperV2 - newMod.Value2) / (newMod.BaseUpperV2 - newMod.BaseLowerV2)) * bytModWeight2)
+                    intValueRank2 = CInt(Math.Round(((newMod.BaseUpperV2 - newMod.Value2) / (newMod.BaseUpperV2 - newMod.BaseLowerV2)) * bytModWeight2))
                     sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intValueRank2 * -1) & vbTab & newMod.BaseUpperV2 - newMod.Value2 & " below max of " & newMod.BaseUpperV2 & " (range: " & newMod.BaseUpperV2 - newMod.BaseLowerV2 & ", weight: " & bytModWeight2 & ")")
                     sb.Append(vbCrLf & vbTab & "weight*(max-value)/range = " & bytModWeight2 & "*(" & newMod.BaseUpperV2 & "-" & newMod.Value2 & ")/" & newMod.BaseUpperV2 - newMod.BaseLowerV2 & "=" & intValueRank2)
                 Else
@@ -1038,7 +1041,7 @@ AddMod:
             If newMod.Weight * 10 + 10 < intLevelRank + intValueRank1 + intValueRank2 Then sb.Append(vbCrLf & vbCrLf & "-10 (capped)")
 
 AddExplanationGoto:
-            AddExplanation(IIf(strOverrideKey = "", strID & strName, strOverrideKey), sb)
+            AddExplanation(IIf(strOverrideKey = "", strID & strName, strOverrideKey).ToString, sb)
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
             Return 0
@@ -1051,34 +1054,34 @@ AddExplanationGoto:
             'To find the percentile rank of a score, x, out of a set of n scores, where x is not included:
             ' 100 * (number of scores below x) / n = percentile rank
             'Where n = number of scores 
-            Dim lngNumConfigurationsBelow As Long = 0, lngNumConfigurations As Long = 0, bytNumMods As Byte = 0, sngExtrConfigurations As Single = 0
+            Dim lngNumConfigurationsBelow As Long = 0, lngNumConfigurations As Long = 0, intNumMods As Integer = 0, sngExtrConfigurations As Single = 0
             For Each myModList In {MyItem.ExplicitPrefixMods, MyItem.ExplicitSuffixMods}
                 For Each myMod In myModList
                     Dim result() As DataRow = Nothing
-                    result = dtWeights.Select("ExportField = '" & myMod.Type1 & "'" & IIf(myMod.Type2 <> "", " AND ExportField2 = '" & myMod.Type2 & "'", " AND ExportField2 = ''"))
+                    result = dtWeights.Select("ExportField = '" & myMod.Type1 & "'" & IIf(myMod.Type2 <> "", " AND ExportField2 = '" & myMod.Type2 & "'", " AND ExportField2 = ''").ToString)
                     If result.Count <> 0 Then
                         For Each row In result
                             For Each modRow In RunModResultQuery(MyItem, row)
                                 If myMod.BaseUpperMaxV1 <> 0 Then
-                                    If modRow("MinV") < myMod.Value1 Then lngNumConfigurationsBelow += modRow("MinV2") - modRow("MinV") + 1 - IIf(myMod.Value1 <= modRow("MinV2"), modRow("MinV2") - myMod.Value1 + 1, 0)
-                                    lngNumConfigurations += modRow("MinV2") - modRow("MinV") + 1
-                                    If modRow("MaxV2") < myMod.MaxValue1 Then lngNumConfigurationsBelow += modRow("MaxV2") - modRow("MaxV") + 1 - IIf(myMod.MaxValue1 <= modRow("MaxV2"), modRow("MaxV") - myMod.MaxValue1 + 1, 0)
-                                    lngNumConfigurations += modRow("MaxV2") - modRow("MaxV") + 1
+                                    If CSng(modRow("MinV")) < myMod.Value1 Then lngNumConfigurationsBelow += CLng(CSng(modRow("MinV2")) - CSng(modRow("MinV")) + 1 - CSng(IIf(myMod.Value1 <= CSng(modRow("MinV2")), CSng(modRow("MinV2")) - myMod.Value1 + 1, 0)))
+                                    lngNumConfigurations += CLng(CSng(modRow("MinV2")) - CSng(modRow("MinV")) + 1)
+                                    If CSng(modRow("MaxV2")) < myMod.MaxValue1 Then lngNumConfigurationsBelow += CLng(CSng(modRow("MaxV2")) - CSng(modRow("MaxV")) + 1 - CSng(IIf(myMod.MaxValue1 <= CSng(modRow("MaxV2")), CSng(modRow("MaxV")) - myMod.MaxValue1 + 1, 0)))
+                                    lngNumConfigurations += CLng(CSng(modRow("MaxV2")) - CSng(modRow("MaxV")) + 1)
                                 Else
-                                    If modRow("MinV") < myMod.Value1 Then lngNumConfigurationsBelow += modRow("MaxV") - modRow("MinV") + 1 - IIf(myMod.Value1 < modRow("MaxV"), modRow("MaxV") - myMod.Value1 + 1, 0)
-                                    lngNumConfigurations += modRow("MaxV") - modRow("MinV") + 1
+                                    If CSng(modRow("MinV")) < myMod.Value1 Then lngNumConfigurationsBelow += CLng(CSng(modRow("MaxV")) - CSng(modRow("MinV")) + 1 - CSng(IIf(myMod.Value1 < CSng(modRow("MaxV")), CSng(modRow("MaxV")) - myMod.Value1 + 1, 0)))
+                                    lngNumConfigurations += CLng(CSng(modRow("MaxV")) - CSng(modRow("MinV")) + 1)
                                 End If
                                 If myMod.Value2 <> 0 Then
-                                    If modRow("MinV2") < myMod.Value2 Then lngNumConfigurationsBelow += modRow("MaxV2") - modRow("MinV2") + 1 - IIf(myMod.Value2 < modRow("MaxV2"), modRow("MaxV2") - myMod.Value2 + 1, 0)
-                                    lngNumConfigurations += modRow("MaxV2") - modRow("MinV2") + 1
+                                    If CSng(modRow("MinV2")) < myMod.Value2 Then lngNumConfigurationsBelow += CLng(CSng(modRow("MaxV2")) - CSng(modRow("MinV2")) + 1 - CSng(IIf(myMod.Value2 < CSng(modRow("MaxV2")), CSng(modRow("MaxV2")) - myMod.Value2 + 1, 0)))
+                                    lngNumConfigurations += CLng(CSng(modRow("MaxV2")) - CSng(modRow("MinV2")) + 1)
                                 End If
                             Next
                         Next
                     End If
-                    bytNumMods += 1
+                    intNumMods += 1
                 Next
             Next
-            'If bytNumMods < 6 Then sngExtrConfigurations = (6 - bytNumMods) * (lngNumConfigurations / bytNumMods) ' Use a calculation of the average number of configs for the missing mods
+            'If bytNumMods < 6 Then sngExtrConfigurations = (6 - bytNumMods) * (lngNumConfigurations / intNumMods) ' Use a calculation of the average number of configs for the missing mods
             CalculatePercentile = 100 * ((lngNumConfigurationsBelow)) / (lngNumConfigurations + sngExtrConfigurations)
             CalculatePercentile = Math.Max(1, CalculatePercentile)      ' By definition, a percentile cannot be less than 1%
             CalculatePercentile = Math.Min(99, CalculatePercentile)     ' By definition, a percentile cannot be greater than 99%
@@ -1096,7 +1099,7 @@ AddExplanationGoto:
         End If
     End Sub
 
-    Public Function RankUnknownValueMod(newMod As FullMod, sngMaxV As Single, bytMaxIndex As Byte, strID As String, strName As String, strAffix As String, Optional strOverridKey As String = "") As Integer
+    Public Function RankUnknownValueMod(newMod As FullMod, sngMaxV As Single, intMaxIndex As Integer, strID As String, strName As String, strAffix As String, Optional strOverridKey As String = "") As Single
         Try
             Dim sbTemp As New System.Text.StringBuilder
             sbTemp.Append("------Ranked " & strAffix & " mod: " & newMod.FullText)
@@ -1108,8 +1111,8 @@ AddExplanationGoto:
                 Else
                     RankUnknownValueMod += newMod.Weight * 10   ' The value is below the min for the lowest level, so set weight as normal, but punish for value/level
                     sbTemp.Append(vbCrLf & String.Format("{0:'+'0;'-'0}", newMod.Weight * 10) & vbTab & "(mod weight * 10) = (" & newMod.Weight & " * 10) = " & newMod.Weight * 10)
-                    Dim intLevelRank As Integer = ((bytMaxIndex + 1) * 10)       ' The amount lost because of not hitting the highest possible level for the mod
-                    sbTemp.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intLevelRank * -1) & vbTab & "(max mod level + 1) * 10 = (" & bytMaxIndex + 1 & " * 10) = " & intLevelRank)
+                    Dim intLevelRank As Integer = ((intMaxIndex + 1) * 10)       ' The amount lost because of not hitting the highest possible level for the mod
+                    sbTemp.Append(vbCrLf & String.Format("{0:'+'0;'-'0;'-'0}", intLevelRank * -1) & vbTab & "(max mod level + 1) * 10 = (" & intMaxIndex + 1 & " * 10) = " & intLevelRank)
                     RankUnknownValueMod -= Math.Min(newMod.Weight * 10 + 10, intLevelRank)
                     If newMod.Weight * 10 + 10 < intLevelRank Then sbTemp.Append(vbCrLf & vbCrLf & "-10 (capped)")
                 End If
@@ -1118,14 +1121,14 @@ AddExplanationGoto:
                 sbTemp.Append(vbCrLf & String.Format("{0:'+'0;'-'0}", newMod.Weight * 10) & vbTab & "(mod weight * 10) = (" & newMod.Weight & " * 10) = " & newMod.Weight * 10)
             End If
             sbTemp.Append(vbCrLf & vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", RankUnknownValueMod) & ") (running total)" & vbCrLf)
-            AddExplanation(IIf(strOverridKey = "", strID & strName, strOverridKey), sbTemp)
+            AddExplanation(IIf(strOverridKey = "", strID & strName, strOverridKey).ToString, sbTemp)
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
             Return 0
         End Try
     End Function
 
-    Public Sub DynamicMultiDimLoop(ByRef curpos() As Integer, ByRef maxpos() As Byte, ByRef ModList As List(Of DataRow), ModStatsList As Dictionary(Of String, DataRow), curdim As Byte, myGear As Gear, MaxIndex As Dictionary(Of String, Byte), modPos As Dictionary(Of String, Byte), ByRef newFullItem As FullItem, blAllowLegacy As Boolean)
+    Public Sub DynamicMultiDimLoop(ByRef curpos() As Integer, ByRef maxpos() As Integer, ByRef ModList As List(Of DataRow), ModStatsList As Dictionary(Of String, DataRow), curdim As Integer, myGear As Gear, MaxIndex As Dictionary(Of String, Integer), modPos As Dictionary(Of String, Integer), ByRef newFullItem As FullItem, blAllowLegacy As Boolean)
         Try
             For i = maxpos(curdim) To -1 Step -1    ' We go to -1, since -1 is the index where we don't use the potential mod
                 curpos(curdim) = i
@@ -1133,30 +1136,30 @@ AddExplanationGoto:
                 If i >= 0 Then
                     strStatsKey = ModList(curdim)("ExportField").ToString.ToLower & ModList(curdim)("ExportField2").ToString.ToLower & i
                     If ModStatsList.ContainsKey(strStatsKey) = False Then   ' It must be a rarity mod that could be a shared total of both a prefix and a suffix
-                        strStatsKey += "," & ModList(curdim)("Description").ToString.Split(",")(1)
+                        strStatsKey += "," & ModList(curdim)("Description").ToString.Split(CChar(","))(1)
                     End If
                 End If
                 ' If the 'min' value for this mod is above the actual value, then skip it and go down a level in order to trim our search space
                 ' If the 'max' value for this mod is below the actual value, AND it is not a combined mod (meaning there is no other way to satisfy the value), then go up a level and trim some more
                 ' The i>0 condition means that we will try at least once, so that we will set an "UnknownValue=True" if we're having trouble with a legacy mod/value
-                If ModList(curdim)("ExportField2") = "" And i > 0 Then
-                    Dim bytPos As Byte = modPos(ModList(curdim)("ExportField").ToString.ToLower)
-                    If myGear.Explicitmods(bytPos).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then   ' We have to check a ranged value for both minimums
-                        If GetNumeric(myGear.Explicitmods(bytPos), 0, myGear.Explicitmods(bytPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) < ModStatsList(strStatsKey)("MinV") Then Continue For
-                        If GetNumeric(myGear.Explicitmods(bytPos), myGear.Explicitmods(bytPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(bytPos).Length) < ModStatsList(strStatsKey)("MaxV2") Then Continue For
-                        If GetNumeric(myGear.Explicitmods(bytPos), 0, myGear.Explicitmods(bytPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) > ModStatsList(strStatsKey)("MinV2") And blAddedOne = True Then Exit For
-                        If GetNumeric(myGear.Explicitmods(bytPos), myGear.Explicitmods(bytPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(bytPos).Length) > ModStatsList(strStatsKey)("MaxV") And blAddedOne = True Then Exit For
+                If ModList(curdim)("ExportField2").ToString = "" And i > 0 Then
+                    Dim intPos As Integer = modPos(ModList(curdim)("ExportField").ToString.ToLower)
+                    If myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then   ' We have to check a ranged value for both minimums
+                        If GetNumeric(myGear.Explicitmods(intPos), 0, myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                        If GetNumeric(myGear.Explicitmods(intPos), myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos).Length) < CSng(ModStatsList(strStatsKey)("MaxV2")) Then Continue For
+                        If GetNumeric(myGear.Explicitmods(intPos), 0, myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) > CSng(ModStatsList(strStatsKey)("MinV2")) And blAddedOne = True Then Exit For
+                        If GetNumeric(myGear.Explicitmods(intPos), myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos).Length) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
                     Else
-                        If GetNumeric(myGear.Explicitmods(bytPos)) < ModStatsList(strStatsKey)("MinV") Then Continue For
-                        If HaveToShare(GetChars(myGear.Explicitmods(bytPos)).ToLower, ModList, curpos) = False Then
-                            If GetNumeric(myGear.Explicitmods(bytPos)) > ModStatsList(strStatsKey)("MaxV") And blAddedOne = True Then Exit For
+                        If GetNumeric(myGear.Explicitmods(intPos)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                        If HaveToShare(GetChars(myGear.Explicitmods(intPos)).ToLower, ModList, curpos) = False Then
+                            If GetNumeric(myGear.Explicitmods(intPos)) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
                         End If
                     End If
                 ElseIf i > 0 Then
-                    Dim bytPos As Byte = modPos(ModList(curdim)("ExportField").ToString.ToLower)
-                    Dim bytPos2 As Byte = modPos(ModList(curdim)("ExportField2").ToString.ToLower)
-                    If GetNumeric(myGear.Explicitmods(bytPos)) < ModStatsList(strStatsKey)("MinV") Then Continue For
-                    If GetNumeric(myGear.Explicitmods(bytPos2)) < ModStatsList(strStatsKey)("MinV2") Then Continue For
+                    Dim intPos As Integer = modPos(ModList(curdim)("ExportField").ToString.ToLower)
+                    Dim intPos2 As Integer = modPos(ModList(curdim)("ExportField2").ToString.ToLower)
+                    If GetNumeric(myGear.Explicitmods(intPos)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                    If GetNumeric(myGear.Explicitmods(intPos2)) < CSng(ModStatsList(strStatsKey)("MinV2")) Then Continue For
                 End If
 
                 If curdim < UBound(maxpos) Then
@@ -1164,21 +1167,21 @@ AddExplanationGoto:
                     DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, curdim + 1, myGear, MaxIndex, modPos, newFullItem, blAllowLegacy)
                 Else
                     ' We have a possible match!
-                    Dim bytPos(MaxIndex.Count - 1, 1) As Byte, blmatch As Boolean = True
+                    Dim intPos(MaxIndex.Count - 1, 1) As Integer, blmatch As Boolean = True
                     Dim ModMinTotals(myGear.Explicitmods.Count - 1) As Single, ModMaxTotals(myGear.Explicitmods.Count - 1) As Single
                     For j = 0 To MaxIndex.Count - 1
                         If curpos(j) = -1 Then Continue For ' If position is -1, we are trying to get the proper totals without this mod
                         Dim strTempStatKey As String = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower & curpos(j)
                         If ModList(j)("Description").ToString.Contains(",") = True Then
-                            strTempStatKey += "," & ModList(j)("Description").ToString.Split(",")(1)
+                            strTempStatKey += "," & ModList(j)("Description").ToString.Split(CChar(","))(1)
                         End If
-                        bytPos(j, 0) = modPos(ModList(j)("ExportField").ToString.ToLower)
-                        ModMinTotals(bytPos(j, 0)) += ModStatsList(strTempStatKey)("MinV")
-                        ModMaxTotals(bytPos(j, 0)) += ModStatsList(strTempStatKey)("MaxV")
-                        If ModList(j)("ExportField2") <> "" Then
-                            bytPos(j, 1) = modPos(ModList(j)("ExportField2").ToString.ToLower)
-                            ModMinTotals(bytPos(j, 1)) += ModStatsList(strTempStatKey)("MinV2")
-                            ModMaxTotals(bytPos(j, 1)) += ModStatsList(strTempStatKey)("MaxV2")
+                        intPos(j, 0) = modPos(ModList(j)("ExportField").ToString.ToLower)
+                        ModMinTotals(intPos(j, 0)) += CSng(ModStatsList(strTempStatKey)("MinV"))
+                        ModMaxTotals(intPos(j, 0)) += CSng(ModStatsList(strTempStatKey)("MaxV"))
+                        If ModList(j)("ExportField2").ToString <> "" Then
+                            intPos(j, 1) = modPos(ModList(j)("ExportField2").ToString.ToLower)
+                            ModMinTotals(intPos(j, 1)) += CSng(ModStatsList(strTempStatKey)("MinV2"))
+                            ModMaxTotals(intPos(j, 1)) += CSng(ModStatsList(strTempStatKey)("MaxV2"))
                         End If
                     Next
                     For j = 0 To ModMinTotals.Count - 1
@@ -1201,48 +1204,48 @@ AddExplanationGoto:
                         End If
                     Next
                     If blmatch = True Then
-                        Dim intRank As Integer = 0
+                        Dim sngRank As Single = 0
                         Dim strRankExplanationKey As String = myGear.UniqueIDHash & myGear.Name & TempInventory.Count
                         For j = 0 To ModList.Count - 1
                             If curpos(j) = -1 Then Continue For ' If position is -1, this mod position in ModList will not be used
                             Dim newMod As New FullMod, strAffix As String = ""
-                            newMod.FullText = myGear.Explicitmods(bytPos(j, 0))
-                            newMod.Type1 = GetChars(myGear.Explicitmods(bytPos(j, 0)))
+                            newMod.FullText = myGear.Explicitmods(intPos(j, 0))
+                            newMod.Type1 = GetChars(myGear.Explicitmods(intPos(j, 0)))
                             newMod.Weight = CInt(ModList(j)("Weight").ToString)
                             Dim strKey As String = "", strMaxIndexKey As String = ""
                             If ModList(j)("Description").ToString.Contains(",") Then
-                                strKey = ModList(j)("ExportField").tolower & ModList(j)("ExportField2").tolower & curpos(j) & "," & ModList(j)("Description").ToString.Split(",")(1)
-                                strMaxIndexKey = ModList(j)("ExportField").tolower & ModList(j)("ExportField2").tolower & "," & ModList(j)("Description").ToString.Split(",")(1)
+                                strKey = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower & curpos(j) & "," & ModList(j)("Description").ToString.Split(CChar(","))(1)
+                                strMaxIndexKey = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower & "," & ModList(j)("Description").ToString.Split(CChar(","))(1)
                             Else
-                                strKey = ModList(j)("ExportField").tolower & ModList(j)("ExportField2").tolower & curpos(j)
-                                strMaxIndexKey = ModList(j)("ExportField").tolower & ModList(j)("ExportField2").tolower
+                                strKey = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower & curpos(j)
+                                strMaxIndexKey = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower
                             End If
 
-                            If myGear.Explicitmods(bytPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                                newMod.Value1 = GetNumeric(myGear.Explicitmods(bytPos(j, 0)), 0, myGear.Explicitmods(bytPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase))
-                                newMod.MaxValue1 = GetNumeric(myGear.Explicitmods(bytPos(j, 0)), myGear.Explicitmods(bytPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(bytPos(j, 0)).Length)
+                            If myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                                newMod.Value1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)), 0, myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                                newMod.MaxValue1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)), myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos(j, 0)).Length)
                             Else
-                                If HaveToShare(ModList(j)("ExportField").tolower, ModList, curpos) = True Then
+                                If HaveToShare(ModList(j)("ExportField").ToString.ToLower, ModList, curpos) = True Then
                                     ' We only have a portion of this value...have to apply a weighting formula to determine how much is ours and how much the other mod(s) will chip in
-                                    newMod.Value1 = DistributeValues(strKey, ModList(j)("ExportField"), GetNumeric(myGear.Explicitmods(bytPos(j, 0))), ModList, ModStatsList, curpos)
+                                    newMod.Value1 = DistributeValues(strKey, ModList(j)("ExportField").ToString, GetNumeric(myGear.Explicitmods(intPos(j, 0))), ModList, ModStatsList, curpos)
                                     ' Have to change the fulltext to reflect the new value
                                     newMod.FullText = BuildFullText(newMod.Type1, newMod.Value1)
                                 Else
-                                    newMod.Value1 = GetNumeric(myGear.Explicitmods(bytPos(j, 0)))
-                                    If GetNumeric(myGear.Explicitmods(bytPos(j, 0))) > ModStatsList(strKey)("MaxV").ToString And blAllowLegacy = True Then
+                                    newMod.Value1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)))
+                                    If GetNumeric(myGear.Explicitmods(intPos(j, 0))) > CSng(ModStatsList(strKey)("MaxV").ToString) And blAllowLegacy = True Then
                                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
-                                        strAffix = RunModResultQuery(newFullItem, , ModList(j)("Description"))(0)("Prefix/Suffix")
-                                        Dim sngMaxV As Single = ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV")
-                                        intRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), myGear.UniqueIDHash, myGear.Name, strAffix, strRankExplanationKey)
+                                        strAffix = RunModResultQuery(newFullItem, , ModList(j)("Description").ToString)(0)("Prefix/Suffix").ToString
+                                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
+                                        sngRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), myGear.UniqueIDHash.ToString, myGear.Name, strAffix, strRankExplanationKey)
                                         ' Don't jump ahead just yet, we might have an ExportField2 to set
                                     End If
                                 End If
                             End If
-                            If ModList(j)("ExportField2") <> "" Then
-                                newMod.Type2 = GetChars(myGear.Explicitmods(bytPos(j, 1)))
-                                If HaveToShare(ModList(j)("ExportField2").tolower, ModList, curpos) = True Then
+                            If ModList(j)("ExportField2").ToString <> "" Then
+                                newMod.Type2 = GetChars(myGear.Explicitmods(intPos(j, 1)))
+                                If HaveToShare(ModList(j)("ExportField2").ToString.ToLower, ModList, curpos) = True Then
                                     ' We only have a portion of this value...have to apply a weighting formula to determine how much is ours and how much the other mod(s) will chip in
-                                    newMod.Value2 = DistributeValues(strKey, ModList(j)("ExportField2"), GetNumeric(myGear.Explicitmods(bytPos(j, 1))), ModList, ModStatsList, curpos)
+                                    newMod.Value2 = DistributeValues(strKey, ModList(j)("ExportField2").ToString, GetNumeric(myGear.Explicitmods(intPos(j, 1))), ModList, ModStatsList, curpos)
                                     If newMod.FullText.IndexOf("/") = -1 Then
                                         newMod.FullText += "/" & BuildFullText(newMod.Type2, newMod.Value2)
                                     Else
@@ -1250,30 +1253,30 @@ AddExplanationGoto:
                                         newMod.FullText = newMod.FullText.Substring(0, newMod.FullText.IndexOf("/")) & BuildFullText(newMod.Type2, newMod.Value2)
                                     End If
                                 Else
-                                    newMod.Value2 = GetNumeric(myGear.Explicitmods(bytPos(j, 1)))
+                                    newMod.Value2 = GetNumeric(myGear.Explicitmods(intPos(j, 1)))
                                     ' This second mod may not be part of the original mod text
                                     If newMod.FullText.IndexOf("/") = -1 Then newMod.FullText += "/" & BuildFullText(newMod.Type2, newMod.Value2)
                                 End If
                             End If
                             If newMod.UnknownValues = True Then GoTo AddMod2
 
-                            newMod.BaseLowerV1 = ModStatsList(strKey)("MinV").ToString
+                            newMod.BaseLowerV1 = CSng(ModStatsList(strKey)("MinV").ToString)
                             If newMod.MaxValue1 <> 0 And newMod.MaxValue1 <> Nothing Then ' This is a mod with range (i.e. 12-16 damage)
-                                newMod.BaseLowerMaxV1 = ModStatsList(strKey)("MaxV2").ToString
-                                newMod.BaseUpperV1 = ModStatsList(strKey)("MinV2").ToString
-                                newMod.BaseUpperMaxV1 = ModStatsList(strKey)("MaxV").ToString
+                                newMod.BaseLowerMaxV1 = CSng(ModStatsList(strKey)("MaxV2").ToString)
+                                newMod.BaseUpperV1 = CSng(ModStatsList(strKey)("MinV2").ToString)
+                                newMod.BaseUpperMaxV1 = CSng(ModStatsList(strKey)("MaxV").ToString)
                             Else
-                                newMod.BaseUpperV1 = ModStatsList(strKey)("MaxV").ToString
+                                newMod.BaseUpperV1 = CSng(ModStatsList(strKey)("MaxV").ToString)
                             End If
-                            If ModList(j)("ExportField2") <> "" Then
-                                newMod.BaseLowerV2 = ModStatsList(strKey)("MinV2").ToString
-                                newMod.BaseUpperV2 = ModStatsList(strKey)("MaxV2").ToString
+                            If ModList(j)("ExportField2").ToString <> "" Then
+                                newMod.BaseLowerV2 = CSng(ModStatsList(strKey)("MinV2").ToString)
+                                newMod.BaseUpperV2 = CSng(ModStatsList(strKey)("MaxV2").ToString)
                             End If
-                            newMod.MiniLvl = ModStatsList(strKey)("Level").ToString
+                            newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                             strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                            intRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, myGear.UniqueIDHash, myGear.Name, strAffix, strRankExplanationKey)
+                            sngRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, myGear.UniqueIDHash.ToString, myGear.Name, strAffix, strRankExplanationKey)
                             Dim sb As New System.Text.StringBuilder
-                            sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", intRank) & ")  (running total)" & vbCrLf)
+                            sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ")  (running total)" & vbCrLf)
                             RankExplanation(strRankExplanationKey) += vbCrLf & sb.ToString
 
 AddMod2:
@@ -1291,11 +1294,11 @@ AddMod2:
                             RankExplanation.Remove(strRankExplanationKey)
                             Continue For
                         End If
-                        newFullItem.Rank = intRank
-                        newFullItem.Percentile = CalculatePercentile(newFullItem).ToString("0.0")
+                        newFullItem.Rank = sngRank
+                        newFullItem.Percentile = CSng(CalculatePercentile(newFullItem).ToString("0.0"))
                         RankExplanation(strRankExplanationKey) = RankExplanation(strRankExplanationKey).Substring(0, RankExplanation(strRankExplanationKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
                         If TempInventory.IndexOf(newFullItem) = -1 Then
-                            Dim tmpItem As FullItem = newFullItem.Clone
+                            Dim tmpItem As FullItem = CType(newFullItem.Clone, FullItem)
                             TempInventory.Add(tmpItem)
                         End If
                         newFullItem.ExplicitPrefixMods.RemoveRange(0, newFullItem.ExplicitPrefixMods.Count) ' Remove any mod list changes we might have made
@@ -1315,8 +1318,8 @@ AddMod2:
         Dim blFound As Boolean = False
         For i = 0 To ModList.Count - 1
             If curpos(i) = -1 Then Continue For
-            Dim strKey As String = ModList(i)("ExportField").tolower & ModList(i)("ExportField2").tolower
-            If ModList(i)("ExportField").tolower = strMyMod.ToLower Or ModList(i)("ExportField2").tolower = strMyMod.ToLower Then
+            Dim strKey As String = ModList(i)("ExportField").ToString.ToLower & ModList(i)("ExportField2").ToString.ToLower
+            If ModList(i)("ExportField").ToString.ToLower = strMyMod.ToLower Or ModList(i)("ExportField2").ToString.ToLower = strMyMod.ToLower Then
                 If blFound = False Then
                     blFound = True
                 Else
@@ -1335,28 +1338,28 @@ AddMod2:
             If curpos(i) = -1 Then Continue For
             Dim strKey As String = ""
             If ModList(i)("Description").ToString.Contains(",") Then
-                strKey = ModList(i)("ExportField").tolower & ModList(i)("ExportField2").tolower & curpos(i) & "," & ModList(i)("Description").ToString.Split(",")(1)
+                strKey = ModList(i)("ExportField").ToString.ToLower & ModList(i)("ExportField2").ToString.ToLower & curpos(i) & "," & ModList(i)("Description").ToString.Split(CChar(","))(1)
             Else
-                strKey = ModList(i)("ExportField").tolower & ModList(i)("ExportField2").tolower & curpos(i)
+                strKey = ModList(i)("ExportField").ToString.ToLower & ModList(i)("ExportField2").ToString.ToLower & curpos(i)
             End If
 
-            If ModList(i)("ExportField").tolower = strMod.ToLower Then
+            If ModList(i)("ExportField").ToString.ToLower = strMod.ToLower Then
                 If strMyKey.ToLower <> strKey.ToLower Then
-                    sngTotalRange += ModStatsList(strKey)("MaxV").ToString - ModStatsList(strKey)("MinV").ToString
-                    sngTotalMax += ModStatsList(strKey)("MaxV").ToString
+                    sngTotalRange += CSng(ModStatsList(strKey)("MaxV").ToString) - CSng(ModStatsList(strKey)("MinV").ToString)
+                    sngTotalMax += CSng(ModStatsList(strKey)("MaxV").ToString)
                 Else
-                    sngRange = ModStatsList(strKey)("MaxV").ToString - ModStatsList(strKey)("MinV").ToString
-                    sngMax = ModStatsList(strKey)("MaxV").ToString
+                    sngRange = CSng(ModStatsList(strKey)("MaxV").ToString) - CSng(ModStatsList(strKey)("MinV").ToString)
+                    sngMax = CSng(ModStatsList(strKey)("MaxV").ToString)
                     sngTotalRange += sngRange
                     sngTotalMax += sngMax
                 End If
-            ElseIf ModList(i)("ExportField2").tolower = strMod.ToLower Then
+            ElseIf ModList(i)("ExportField2").ToString.ToLower = strMod.ToLower Then
                 If strMyKey.ToLower <> strKey.ToLower Then
-                    sngTotalRange += ModStatsList(strKey)("MaxV2").ToString - ModStatsList(strKey)("MinV2").ToString
-                    sngTotalMax += ModStatsList(strKey)("MaxV2").ToString()
+                    sngTotalRange += CSng(ModStatsList(strKey)("MaxV2").ToString) - CSng(ModStatsList(strKey)("MinV2").ToString)
+                    sngTotalMax += CSng(ModStatsList(strKey)("MaxV2").ToString())
                 Else
-                    sngRange = ModStatsList(strKey)("MaxV2").ToString - ModStatsList(strKey)("MinV2").ToString
-                    sngMax = ModStatsList(strKey)("MaxV2").ToString
+                    sngRange = CSng(ModStatsList(strKey)("MaxV2").ToString) - CSng(ModStatsList(strKey)("MinV2").ToString)
+                    sngMax = CSng(ModStatsList(strKey)("MaxV2").ToString)
                     sngTotalRange += sngRange
                     sngTotalMax += sngMax
                 End If
@@ -1366,12 +1369,12 @@ AddMod2:
         If sngCalculatedValue - Math.Truncate(sngCalculatedValue) = 0.5 Then
             If blSolomonsJudgment.Count = 0 Then
                 blSolomonsJudgment.Add(strMod, True)
-                sngCalculatedValue = Math.Truncate(sngCalculatedValue)
+                sngCalculatedValue = CSng(Math.Truncate(sngCalculatedValue))
             Else
-                sngCalculatedValue = Math.Ceiling(sngCalculatedValue)
+                sngCalculatedValue = CSng(Math.Ceiling(sngCalculatedValue))
             End If
         Else
-            sngCalculatedValue = Math.Round(sngCalculatedValue)
+            sngCalculatedValue = CSng(Math.Round(sngCalculatedValue))
         End If
         DistributeValues = sngCalculatedValue
     End Function
@@ -1390,7 +1393,7 @@ AddMod2:
         Try
             Dim intCounter As Integer = 0
             For Each it In myList
-                Dim bytPCount As Byte = 0, bytSCount As Byte = 0, bytICount As Byte = 0
+                Dim intPCount As Integer = 0, intSCount As Integer = 0, intICount As Integer = 0
                 Dim row As DataRow = dt.NewRow()
                 row("Rank") = it.Rank
                 row("%") = it.Percentile
@@ -1406,13 +1409,13 @@ AddMod2:
                 If it.ExplicitPrefixMods Is Nothing = False Then
                     For i = 0 To it.ExplicitPrefixMods.Count - 1
                         row("Prefix " & i + 1) = it.ExplicitPrefixMods(i).FullText
-                        row("pft" & i + 1) = it.ExplicitPrefixMods(i).Type1 & IIf(it.ExplicitPrefixMods(i).Type2 <> "", "/" & it.ExplicitPrefixMods(i).Type2, "")
+                        row("pft" & i + 1) = it.ExplicitPrefixMods(i).Type1 & IIf(it.ExplicitPrefixMods(i).Type2 <> "", "/" & it.ExplicitPrefixMods(i).Type2, "").ToString
                         row("pt" & i + 1) = it.ExplicitPrefixMods(i).Type1
                         row("pt" & i + 1 & "2") = it.ExplicitPrefixMods(i).Type2
                         row("pv" & i + 1) = it.ExplicitPrefixMods(i).Value1
                         row("pv" & i + 1 & "m") = it.ExplicitPrefixMods(i).MaxValue1
                         row("pv" & i + 1 & "2") = it.ExplicitPrefixMods(i).Value2
-                        bytPCount += 1
+                        intPCount += 1
                     Next
                     For i = it.ExplicitPrefixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
                         row("Prefix " & i + 1) = ""
@@ -1424,17 +1427,17 @@ AddMod2:
                         row("pv" & i + 1 & "2") = 0
                     Next
                 End If
-                row("pcount") = bytPCount
+                row("pcount") = intPCount
                 If it.ExplicitSuffixMods Is Nothing = False Then
                     For i = 0 To it.ExplicitSuffixMods.Count - 1
                         row("Suffix " & i + 1) = it.ExplicitSuffixMods(i).FullText
-                        row("sft" & i + 1) = it.ExplicitSuffixMods(i).Type1 & IIf(it.ExplicitSuffixMods(i).Type2 <> "", "/" & it.ExplicitSuffixMods(i).Type2, "")
+                        row("sft" & i + 1) = it.ExplicitSuffixMods(i).Type1 & IIf(it.ExplicitSuffixMods(i).Type2 <> "", "/" & it.ExplicitSuffixMods(i).Type2, "").ToString
                         row("st" & i + 1) = it.ExplicitSuffixMods(i).Type1
                         row("st" & i + 1 & "2") = it.ExplicitSuffixMods(i).Type2
                         row("sv" & i + 1) = it.ExplicitSuffixMods(i).Value1
                         row("sv" & i + 1 & "m") = it.ExplicitSuffixMods(i).MaxValue1
                         row("sv" & i + 1 & "2") = it.ExplicitSuffixMods(i).Value2
-                        bytSCount += 1
+                        intSCount += 1
                     Next
                     For i = it.ExplicitSuffixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
                         row("Suffix " & i + 1) = ""
@@ -1446,15 +1449,15 @@ AddMod2:
                         row("sv" & i + 1 & "2") = 0
                     Next
                 End If
-                row("scount") = bytSCount
+                row("scount") = intSCount
                 row("ecount") = it.ExplicitPrefixMods.Count + it.ExplicitSuffixMods.Count
                 If it.ImplicitMods Is Nothing = False Then
                     For i = 0 To it.ImplicitMods.Count - 1
-                        row("Implicit") = row("Implicit") & it.ImplicitMods(i).FullText & ", "
+                        row("Implicit") = row("Implicit").ToString & it.ImplicitMods(i).FullText & ", "
                         row("it" & i + 1) = it.ImplicitMods(i).Type1
                         row("iv" & i + 1) = it.ImplicitMods(i).Value1
                         row("iv" & i + 1 & "m") = it.ImplicitMods(i).MaxValue1
-                        bytICount += 1
+                        intICount += 1
                     Next
                     For i = it.ImplicitMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
                         row("it" & i + 1) = ""
@@ -1463,7 +1466,7 @@ AddMod2:
                     Next
                     row("Implicit") = row("Implicit").ToString.Substring(0, Math.Max(2, row("Implicit").ToString.Length) - 2)
                 End If
-                row("icount") = bytICount
+                row("icount") = intICount
                 row("Qal") = it.Quality
                 row("*") = If(it.OtherSolutions, "*", "")
                 row("Crpt") = it.Corrupted
@@ -1483,36 +1486,36 @@ AddMod2:
         If e.RowIndex = -1 Then Exit Sub
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
-            If FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).LevelGem = True Then AddGemWarning(sb)
-            sb.Append(RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value & DataGridView1.CurrentRow.Cells("Name").Value))
-            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value)
-        ElseIf e.ColumnIndex = DataGridView1.Columns("*").Index AndAlso DataGridView1.CurrentRow.Cells("*").Value = "*" Then
+            If FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then AddGemWarning(sb)
+            sb.Append(RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value.ToString & DataGridView1.CurrentRow.Cells("Name").Value.ToString))
+            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value.ToString)
+        ElseIf e.ColumnIndex = DataGridView1.Columns("*").Index AndAlso DataGridView1.CurrentRow.Cells("*").Value.ToString = "*" Then
             If Application.OpenForms().OfType(Of frmResults).Any = False Then frmResults.Show(Me)
-            frmResults.Text = "Possible Mod Solutions for '" & DataGridView1.CurrentRow.Cells("Name").Value & "'"
+            frmResults.Text = "Possible Mod Solutions for '" & DataGridView1.CurrentRow.Cells("Name").Value.ToString & "'"
             Dim tmpList As New CloneableList(Of String)
-            tmpList.Add(DataGridView1.CurrentRow.Cells("ID").Value)
-            tmpList.Add(DataGridView1.CurrentRow.Cells("Name").Value)
+            tmpList.Add(DataGridView1.CurrentRow.Cells("ID").Value.ToString)
+            tmpList.Add(DataGridView1.CurrentRow.Cells("Name").Value.ToString)
             frmResults.MyData = tmpList
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" Then
-            ShowModInfo(DataGridView1, FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitPrefixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" Then
-            ShowModInfo(DataGridView1, FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitSuffixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+            ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+            ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
         End If
     End Sub
 
-    Public Sub ShowModInfo(dg As DataGridView, MyItem As FullItem, MyMod As List(Of FullMod), bytIndex As Byte, e As DataGridViewCellEventArgs)
+    Public Sub ShowModInfo(dg As DataGridView, MyItem As FullItem, MyMod As List(Of FullMod), intIndex As Integer, e As DataGridViewCellEventArgs)
         Dim sb As New System.Text.StringBuilder
         If MyItem.LevelGem = True Then AddGemWarning(sb)
-        sb.Append("Mod Text: " & MyMod(bytIndex).FullText & vbCrLf)
-        sb.Append("Mod Weight: " & MyMod(bytIndex).Weight & vbCrLf)
+        sb.Append("Mod Text: " & MyMod(intIndex).FullText & vbCrLf)
+        sb.Append("Mod Weight: " & MyMod(intIndex).Weight & vbCrLf)
         Dim result() As DataRow = Nothing
-        result = dtWeights.Select("ExportField = '" & MyMod(bytIndex).Type1 & "'" & IIf(MyMod(bytIndex).Type2 <> "", " AND ExportField2 = '" & MyMod(bytIndex).Type2 & "'", " AND ExportField2 = ''"))
+        result = dtWeights.Select("ExportField = '" & MyMod(intIndex).Type1 & "'" & IIf(MyMod(intIndex).Type2 <> "", " AND ExportField2 = '" & MyMod(intIndex).Type2 & "'", " AND ExportField2 = ''").ToString)
         sb.Append(vbCrLf & "Possible Mod Levels and Values:" & vbCrLf)
         Dim strAffix As String = dg.Columns(e.ColumnIndex).Name.Substring(0, 6)
         Dim blAddedTopRow As Boolean = False
         If result.Count <> 0 Then
             For Each row In result
-                Dim bytModLevel As Byte = 0
+                Dim intModLevel As Integer = 0
                 For Each ModRow In RunModResultQuery(MyItem, row, , strAffix)
                     If blAddedTopRow = False Then
                         sb.Append("----------" & vbTab & "------------" & vbCrLf)
@@ -1520,16 +1523,19 @@ AddMod2:
                         sb.Append("----------" & vbTab & "------------" & vbCrLf)
                         blAddedTopRow = True
                     End If
-                    If ModRow("Description") <> row("Description") Then Continue For
-                    strAffix = ModRow("Prefix/Suffix")
-                    sb.Append("| " & ModRow("Level") & IIf(MyMod(bytIndex).ModLevelActual = bytModLevel And MyMod(bytIndex).UnknownValues = False, "(*)", "") & vbTab & "| " & ModRow("Value") & vbCrLf)
-                    bytModLevel += 1
+                    If ModRow("Description").ToString <> row("Description").ToString Then Continue For
+                    strAffix = ModRow("Prefix/Suffix").ToString
+                    sb.Append("| " & ModRow("Level").ToString & IIf(MyMod(intIndex).ModLevelActual = intModLevel And MyMod(intIndex).UnknownValues = False, "(*)", "").ToString & vbTab & "| " & ModRow("Value").ToString & vbCrLf)
+                    intModLevel += 1
                 Next
             Next
             sb.Append("----------" & vbTab & "------------" & vbCrLf & vbCrLf)
         End If
-        sb.Append(IIf(MyMod(bytIndex).UnknownValues, "Note: the value(s) for this mod are beyond the possible ranges listed...this is likely a 'legacy' mod value for which the level cannot be indicated.", "Current level is indicated by (*)."))
-        MsgBox(sb.ToString, , "Mod Info for " & strAffix & " '" & MyMod(bytIndex).FullText & "'")
+        If MyMod(intIndex).FullText.Contains("Life Regenerated") Then
+            sb.Append("Note: 'Life Regenerated...' values are shown as whole numbers without proper decimal values on GGG's web site, which is likely a bug. Please note that the actual value for this mod may be higher or lower than indicated." & vbCrLf & vbCrLf)
+        End If
+        sb.Append(IIf(MyMod(intIndex).UnknownValues, "Note: the value(s) for this mod are beyond the possible ranges listed...this is likely a 'legacy' mod value for which the level cannot be indicated.", "Current level is indicated by (*)."))
+        MsgBox(sb.ToString, , "Mod Info for " & strAffix & " '" & MyMod(intIndex).FullText & "'")
     End Sub
 
     Public Sub AddGemWarning(ByRef sb As System.Text.StringBuilder)
@@ -1562,11 +1568,11 @@ AddMod2:
             Exit Sub
         End If
         Dim strName As String = DataGridView1.Columns(e.ColumnIndex).Name.ToLower
-        Dim lngIndex As Long = DataGridView1.Rows(e.RowIndex).Cells("Index").Value
-        If strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" Then
-            DataGridViewAddLevelBar(DataGridView1, FullInventory(lngIndex).ExplicitPrefixMods, strName, sender, e)
-        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" Then
-            DataGridViewAddLevelBar(DataGridView1, FullInventory(lngIndex).ExplicitSuffixMods, strName, sender, e)
+        Dim intIndex As Integer = CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)
+        If strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
+            DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
+            DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
         End If
     End Sub
 
@@ -1588,10 +1594,10 @@ AddMod2:
 
     Public Sub DataGridViewAddLevelBar(dg As DataGridView, MyModList As List(Of FullMod), strName As String, sender As Object, e As DataGridViewCellPaintingEventArgs)
         Try
-            Dim bytPos As Byte = GetNumeric(strName) - 1
+            Dim intPos As Integer = CInt(GetNumeric(strName) - 1)
             Dim p As Double = 0, q As Double = 0
             'Dim sngMinDen As Single = 0     ' This is the denominator unit used by the values, for use in setting our level "notches"
-            With MyModList(bytPos)
+            With MyModList(intPos)
                 If .UnknownValues = True Then Exit Sub
                 ' In the calculations below, the +1 offset in both numerator and denominator means that the shortest "bar" at each level is a little larger
                 ' than visually expected, but this is needed to separate the maximum value in a lower level from the minimum value in the level above it.
@@ -1603,21 +1609,21 @@ AddMod2:
                     If .BaseUpperV1 = .BaseLowerV1 And .BaseUpperMaxV1 = .BaseLowerMaxV1 And .ModLevelMax = 0 Then HighlightNoVariationMods(dg, e) : Exit Sub ' There is no variation possible, so exit sub and don't draw bar
                     If .BaseUpperV1 = .BaseLowerV1 Then sngModWeight1 = 0 : sngModWeight2 = 1
                     If .BaseUpperMaxV1 = .BaseLowerMaxV1 Then sngModWeight1 = 1 : sngModWeight2 = 0
-                    q = IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1)) / IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1)) * sngModWeight1 + _
-                        IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 1, (.MaxValue1 - .BaseLowerMaxV1 + 1)) / IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 1, (.BaseUpperMaxV1 - .BaseLowerMaxV1 + 1)) * sngModWeight2
+                    q = CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1))) / CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1))) * sngModWeight1 + _
+                        CSng(IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 1, (.MaxValue1 - .BaseLowerMaxV1 + 1))) / CSng(IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 1, (.BaseUpperMaxV1 - .BaseLowerMaxV1 + 1))) * sngModWeight2
                     'sngMinDen = IIf(.BaseUpperV1 = .BaseLowerV1, 0, 1 / IIf(.BaseUpperV1 = .BaseLowerV1, 1, .BaseUpperV1 - .BaseLowerV1 + 1)) * sngModWeight1 + _
                     '    IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 0, 1 / IIf(.BaseUpperMaxV1 = .BaseLowerMaxV1, 1, (.BaseUpperMaxV1 - .BaseLowerMaxV1 + 1))) * sngModWeight2
                 Else
                     If .BaseUpperV1 = .BaseLowerV1 And .Value2 = 0 And .ModLevelMax = 0 Then HighlightNoVariationMods(dg, e) : Exit Sub ' There is no variation possible, so exit sub and don't draw bar
-                    q = IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1)) / IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1))
+                    q = CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1))) / CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1)))
                     'sngMinDen = IIf(.BaseUpperV1 = .BaseLowerV1, 0, 1 / IIf(.BaseUpperV1 = .BaseLowerV1, 1, .BaseUpperV1 - .BaseLowerV1 + 1))
                 End If
                 If .Value2 <> 0 Then
                     If .BaseUpperV1 = .BaseLowerV1 And .BaseUpperV2 = .BaseLowerV2 And .ModLevelMax = 0 Then HighlightNoVariationMods(dg, e) : Exit Sub ' There is no variation possible, so exit sub and don't draw bar
                     If .BaseUpperV1 = .BaseLowerV1 Then sngModWeight1 = 0 : sngModWeight2 = 1
                     If .BaseUpperV2 = .BaseLowerV2 Then sngModWeight1 = 1 : sngModWeight2 = 0
-                    q = IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1)) / IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1)) * sngModWeight1 + _
-                        IIf(.BaseUpperV2 = .BaseLowerV2, 1, (.Value2 - .BaseLowerV2 + 1)) / IIf(.BaseUpperV2 = .BaseLowerV2, 1, (.BaseUpperV2 - .BaseLowerV2 + 1)) * sngModWeight2
+                    q = CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.Value1 - .BaseLowerV1 + 1))) / CSng(IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1))) * sngModWeight1 + _
+                        CSng(IIf(.BaseUpperV2 = .BaseLowerV2, 1, (.Value2 - .BaseLowerV2 + 1))) / CSng(IIf(.BaseUpperV2 = .BaseLowerV2, 1, (.BaseUpperV2 - .BaseLowerV2 + 1))) * sngModWeight2
                     'sngMinDen = IIf(.BaseUpperV1 = .BaseLowerV1, 0, 1) / IIf(.BaseUpperV1 = .BaseLowerV1, 1, (.BaseUpperV1 - .BaseLowerV1 + 1)) * sngModWeight1 + _
                     '    IIf(.BaseUpperV2 = .BaseLowerV2, 0, 1) / IIf(.BaseUpperV2 = .BaseLowerV2, 1, (.BaseUpperV2 - .BaseLowerV2 + 1)) * sngModWeight2
                 End If
@@ -1633,14 +1639,14 @@ AddMod2:
             Dim r As Drawing.Rectangle
             r.X = e.CellBounds.X + 3
             r.Y = e.CellBounds.Y + 3
-            r.Width = (e.CellBounds.Width - 6) * p
+            r.Width = CInt((e.CellBounds.Width - 6) * p)
             r.Height = e.CellBounds.Height - 6
             Dim br2 As New Drawing.Drawing2D.LinearGradientBrush(r, Drawing.Color.White, Drawing.Color.DarkGray, Drawing.Drawing2D.LinearGradientMode.Vertical)
             e.Graphics.FillRectangle(br2, r)
             e.PaintContent(e.ClipBounds)
             '' Now draw the vertical notches that indicate to the user where the level 'breaks' are
-            'For i = 0 To MyModList(bytPos).ModLevelMax
-            '    Dim sngStart As Single = CSng(e.CellBounds.X + 3 + e.CellBounds.Width * i / (MyModList(bytPos).ModLevelMax + 1)) + sngMinDen * (e.CellBounds.Width - 6)
+            'For i = 0 To MyModList(intPos).ModLevelMax
+            '    Dim sngStart As Single = CSng(e.CellBounds.X + 3 + e.CellBounds.Width * i / (MyModList(intPos).ModLevelMax + 1)) + sngMinDen * (e.CellBounds.Width - 6)
             '    e.Graphics.DrawLine(New Pen(SystemColors.ControlDark, 2), sngStart, CSng(e.CellBounds.Y), sngStart, CSng(e.CellBounds.Y + 3))
             'Next
             e.Handled = True
@@ -1656,38 +1662,38 @@ AddMod2:
 
     Public Sub DataGridViewRowPostPaint(dg As DataGridView, MyInventory As List(Of FullItem), sender As Object, e As DataGridViewRowPostPaintEventArgs)
         Try
-            If dg.Rows(e.RowIndex).Cells("Gem").Value = True Then
+            If CBool(dg.Rows(e.RowIndex).Cells("Gem").Value) = True Then
                 dg.Rows(e.RowIndex).Cells("Gem").Style.BackColor = ColorHasGem
                 dg.Rows(e.RowIndex).Cells("Rank").Style.BackColor = ColorHasGem
                 dg.Rows(e.RowIndex).Cells("Level").Style.BackColor = ColorHasGem
                 dg.Rows(e.RowIndex).Cells("%").Style.BackColor = ColorHasGem
             End If
-            Dim lngindex As Long = dg.Rows(e.RowIndex).Cells("Index").Value
-            If lngindex <> -1 Then
-                HighlightUnknownMods(MyInventory(lngindex).ExplicitPrefixMods, "Prefix ", e.RowIndex)
-                HighlightUnknownMods(MyInventory(lngindex).ExplicitSuffixMods, "Suffix ", e.RowIndex)
+            Dim intIndex As Integer = CInt(dg.Rows(e.RowIndex).Cells("Index").Value)
+            If intIndex <> -1 Then
+                HighlightUnknownMods(MyInventory(intIndex).ExplicitPrefixMods, "Prefix ", e.RowIndex)
+                HighlightUnknownMods(MyInventory(intIndex).ExplicitSuffixMods, "Suffix ", e.RowIndex)
                 For i = 1 To 3
-                    If i > MyInventory(lngindex).ExplicitPrefixMods.Count Then Exit For
-                    If intWeightMax <= MyInventory(lngindex).ExplicitPrefixMods(i - 1).Weight Then
-                        dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.ForeColor = ColorMax
+                    If i > MyInventory(intIndex).ExplicitPrefixMods.Count Then Exit For
+                    If intWeightMax <= MyInventory(intIndex).ExplicitPrefixMods(i - 1).Weight Then
+                        dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.ForeColor = CType(ColorMax, Color)
                         dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
-                    ElseIf intWeightMin >= MyInventory(lngindex).ExplicitPrefixMods(i - 1).Weight Then
-                        dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.ForeColor = ColorMin
+                    ElseIf intWeightMin >= MyInventory(intIndex).ExplicitPrefixMods(i - 1).Weight Then
+                        dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.ForeColor = CType(ColorMin, Color)
                         dg.Rows(e.RowIndex).Cells("Prefix " & i).Style.Font = New Font("Segoe UI", 8.25, FontStyle.Italic)
                     End If
                 Next
                 For i = 1 To 3
-                    If i > MyInventory(lngindex).ExplicitSuffixMods.Count Then Exit For
-                    If intWeightMax <= MyInventory(lngindex).ExplicitSuffixMods(i - 1).Weight Then
-                        dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.ForeColor = ColorMax
+                    If i > MyInventory(intIndex).ExplicitSuffixMods.Count Then Exit For
+                    If intWeightMax <= MyInventory(intIndex).ExplicitSuffixMods(i - 1).Weight Then
+                        dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.ForeColor = CType(ColorMax, Color)
                         dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
-                    ElseIf intWeightMin >= MyInventory(lngindex).ExplicitSuffixMods(i - 1).Weight Then
-                        dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.ForeColor = ColorMin
+                    ElseIf intWeightMin >= MyInventory(intIndex).ExplicitSuffixMods(i - 1).Weight Then
+                        dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.ForeColor = CType(ColorMin, Color)
                         dg.Rows(e.RowIndex).Cells("Suffix " & i).Style.Font = New Font("Segoe UI", 8.25, FontStyle.Italic)
                     End If
                 Next
             End If
-            If dg.Rows(e.RowIndex).Cells("*").Value = "*" Then dg.Rows(e.RowIndex).Cells("*").Style.BackColor = ColorOtherSolutions
+            If dg.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then dg.Rows(e.RowIndex).Cells("*").Style.BackColor = ColorOtherSolutions
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
@@ -1736,8 +1742,8 @@ AddMod2:
     End Sub
 
     Public Sub SetPBDefaults()
-        grpProgress.Left = (Me.Width - grpProgress.Width) / 2
-        grpProgress.Top = (Me.Height - grpProgress.Height) / 2
+        grpProgress.Left = CInt((Me.Width - grpProgress.Width) / 2)
+        grpProgress.Top = CInt((Me.Height - grpProgress.Height) / 2)
         pb.Minimum = 1
         pb.Maximum = CInt((FullInventory.Count + TempInventory.Count) / 10)
         pb.Value = 1
@@ -1755,7 +1761,7 @@ AddMod2:
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", False})
-            Dim blFilter As Boolean = IIf(strFilter <> "", True, False)
+            Dim blFilter As Boolean = strFilter <> ""
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", False})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", ""})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", True})
@@ -1766,7 +1772,7 @@ AddMod2:
                 If mylist.Count = FullInventory.Count Then strList = "Full" Else strList = "Temp"
                 For Each it In mylist
                     it.Rank = 0
-                    Dim strRankKey As String = IIf(strList = "Full", it.ID & it.Name, it.ID & it.Name & mylist.IndexOf(it))
+                    Dim strRankKey As String = IIf(strList = "Full", it.ID & it.Name, it.ID & it.Name & mylist.IndexOf(it)).ToString
                     RankExplanation(strRankKey) = ""
                     For Each ModList In {it.ExplicitPrefixMods, it.ExplicitSuffixMods}
                         Dim strAffix As String = ""
@@ -1777,18 +1783,18 @@ AddMod2:
                         End If
                         For Each myMod In ModList
                             Dim result() As DataRow = Nothing
-                            result = dtWeights.Select("ExportField = '" & myMod.Type1 & "'" & IIf(myMod.Type2 <> "", " AND ExportField2 = '" & myMod.Type2 & "'", " AND ExportField2 = ''"))
+                            result = dtWeights.Select("ExportField = '" & myMod.Type1 & "'" & IIf(myMod.Type2 <> "", " AND ExportField2 = '" & myMod.Type2 & "'", " AND ExportField2 = ''").ToString)
                             If result.Count <> 0 Then
                                 For Each row In result
                                     If RunModResultQuery(it, row).Count <> 0 Then
-                                        myMod.Weight = row("Weight")
+                                        myMod.Weight = CSng(row("Weight"))
                                         Exit For
                                     End If
                                 Next
                                 If myMod.UnknownValues = True Then
-                                    it.Rank += RankUnknownValueMod(myMod, myMod.MaxValue1, myMod.ModLevelMax, it.ID, it.Name, strAffix, strRankKey)
+                                    it.Rank += RankUnknownValueMod(myMod, myMod.MaxValue1, myMod.ModLevelMax, it.ID.ToString, it.Name, strAffix, strRankKey)
                                 Else
-                                    it.Rank += CalculateRank(myMod, myMod.ModLevelMax, result(0)("Description") & myMod.ModLevelActual, it.ID, it.Name, strAffix, strRankKey)
+                                    it.Rank += CalculateRank(myMod, myMod.ModLevelMax, result(0)("Description").ToString & myMod.ModLevelActual, it.ID.ToString, it.Name, strAffix, strRankKey)
                                 End If
                             End If
                             RankExplanation(strRankKey) += vbCrLf & vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", it.Rank) & ")  (running total)" & vbCrLf
@@ -1815,7 +1821,7 @@ AddMod2:
             If blFilter Then ApplyFilter()
 
             Dim FirstCell As DataGridViewCell
-            FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
             'frmPB.Close() : frmPB.Dispose()
@@ -1900,7 +1906,7 @@ AddMod2:
                 Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
                 intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
                 Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows})
-                FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+                FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
                 Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
                 Exit Sub
             End If
@@ -1929,7 +1935,7 @@ AddMod2:
                         Dim intTotal As Integer = 0
                         Dim strType As String = lstTotalTypes(i)
                         For Each strField In {"pt1", "pt12", "pt2", "pt22", "pt3", "pt32", "st1", "st12", "st2", "st22", "st3", "st32", "it1", "it2", "it3"}
-                            intTotal += IIf(row(strField) = strType, row(strField.Replace("t", "v")).ToString, 0)
+                            intTotal += CInt(IIf(row(strField).ToString = strType, row(strField.Replace("t", "v")).ToString, 0))
                         Next
                         row("Tot" & i + 1) = intTotal
                     Next
@@ -1939,12 +1945,15 @@ AddMod2:
                     BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i), "Visible", False})
                 Next
             End If
+            If strOrderBy.Contains("Tot") = True Then     ' Reapply the ordering now that the total fields are populated
+                dtRankFilter = dtRankFilter.Select(strFilter).CopyToDataTable
+            End If
             Dim dv As DataView = New DataView(dtRankFilter)
             dv.Sort = strOrderBy
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dv})
             intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows & " (filter active)"})
-            FirstCell = Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell))
+            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
             Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
 

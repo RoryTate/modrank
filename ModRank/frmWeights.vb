@@ -10,7 +10,7 @@
             Me.Icon = GetEmbeddedIcon("ModRank.PoE.ico")
             dtTemp = dtWeights.Clone
             dtTemp.Rows.Clear()
-            For Each row In dtWeights.Rows
+            For Each row As DataRow In dtWeights.Rows
                 dtTemp.ImportRow(DeepCopyDataRow(row))
             Next
             dgWeights.DataSource = dtTemp
@@ -39,16 +39,16 @@
             sfd.Title = "Save Weights File"
             If sfd.ShowDialog() = Windows.Forms.DialogResult.Cancel Then Exit Sub
 
-            Dim bytResult As Byte = 0
+            Dim dlgResult As DialogResult
             If sfd.FileName = "" Then Exit Sub
             If System.IO.Path.GetDirectoryName(sfd.FileName) <> Application.StartupPath Then
-                bytResult = MsgBox("Only weights files located in the application folder will be used. Are you sure you want to save to another folder?", MsgBoxStyle.YesNo, "Save to Another Folder?")
-                If bytResult = vbNo Then Exit Sub
+                dlgResult = MessageBox.Show("Only weights files located in the application folder will be used. Are you sure you want to save to another folder?", "Save to Another Folder?", MessageBoxButtons.YesNoCancel)
+                If dlgResult = vbNo Or dlgResult = vbCancel Then Exit Sub
             End If
             If System.IO.Path.GetFileNameWithoutExtension(sfd.FileName).ToLower.Substring(0, Math.Min(System.IO.Path.GetFileNameWithoutExtension(sfd.FileName).Length, 8)) <> "weights-" Then
-                bytResult = MsgBox("A weights file must have 'weights-' in the start of the filename. Do you wish to add this text to the filename?", MsgBoxStyle.YesNoCancel, "Add Weights Text to Filename?")
-                If bytResult = vbCancel Then Exit Sub
-                If bytResult = vbYes Then sfd.FileName = System.IO.Path.GetDirectoryName(sfd.FileName) & "\weights-" & System.IO.Path.GetFileName(sfd.FileName)
+                dlgResult = MessageBox.Show("A weights file must have 'weights-' in the start of the filename. Do you wish to add this text to the filename?", "Add Weights Text to Filename?", MessageBoxButtons.YesNoCancel)
+                If dlgResult = vbCancel Then Exit Sub
+                If dlgResult = vbYes Then sfd.FileName = System.IO.Path.GetDirectoryName(sfd.FileName) & "\weights-" & System.IO.Path.GetFileName(sfd.FileName)
             End If
 
             TableToCSV(dtTemp, sfd.FileName, True)
@@ -56,10 +56,8 @@
             Dim blReload As Boolean = False
             Dim strWeight As String = frmMain.cmbWeight.Text
             frmMain.cmbWeight.Items.Clear()
-            If System.IO.Path.GetFileNameWithoutExtension(sfd.FileName).ToLower = "weights-" & strWeight.ToLower Then blReload = True ' If we have saved over the currently open weight file, then reload
+            If System.IO.Path.GetFileNameWithoutExtension(sfd.FileName).ToLower = "weights-" & strWeight.ToLower Then blReload = True Else frmMain.blRepopulated = True ' If we have saved over the currently open weight file, then reload
             frmMain.PopulateWeightsComboBox(strWeight, blReload)
-
-            frmMain.blRepopulated = True
 
             Me.Close()
         Catch ex As Exception

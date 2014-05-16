@@ -22,8 +22,8 @@ Module mdlSettings
     Public ColorUnknownValue As Color = Color.Teal
     Public ColorOtherSolutions As Color = Color.LightSalmon
     Public ColorNoModVariation As Color = Color.LightBlue
-    Public ColorMax = Color.Blue
-    Public ColorMin = Color.Red
+    Public ColorMax As Color = Color.Blue
+    Public ColorMin As Color = Color.Red
     Public intWeightMax As Integer = 9
     Public intWeightMin As Integer = 1
 
@@ -76,7 +76,7 @@ Module mdlSettings
     End Function
 
     Public Sub ErrorHandler(ByVal strName As String, ByVal ex As Exception, Optional ByVal strExtraText As String = "")
-        Dim strError As String = "Error in " & strName & ": " & Environment.NewLine & ex.Message & IIf(strExtraText <> "", Environment.NewLine & Environment.NewLine & strExtraText, "")
+        Dim strError As String = "Error in " & strName & ": " & Environment.NewLine & ex.Message & IIf(strExtraText <> "", Environment.NewLine & Environment.NewLine & strExtraText, "").ToString
         MessageBox.Show(strError, "ModRank", MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1)
         WriteToLog(strError)
     End Sub

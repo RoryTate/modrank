@@ -24,18 +24,18 @@ Module mdlMain
 
     Public Sub SetDataGridViewWidths(dg As DataGridView)
         Try
-            Dim bytCounter As Byte = 0
+            Dim intCounter As Integer = 0
             For Each MyWidth In Split(UserSettings("RowWidths"), ",")
-                If bytCounter > dg.Columns.Count - 1 Then Exit For
+                If intCounter > dg.Columns.Count - 1 Then Exit For
                 If IsNumeric(MyWidth) = False Then Continue For
-                If MyWidth <= 0 Then
-                    dg.Columns(bytCounter).Visible = False
+                If CInt(MyWidth) <= 0 Then
+                    dg.Columns(intCounter).Visible = False
                 Else
-                    dg.Columns(bytCounter).Width = MyWidth
+                    dg.Columns(intCounter).Width = CInt(MyWidth)
                 End If
-                bytCounter += 1
+                intCounter += 1
             Next
-            If bytCounter < bytDisplay Then     ' We're missing some new columns...the settings.xml needs to be updated for this field with new defaults
+            If intCounter < bytDisplay Then     ' We're missing some new columns...the settings.xml needs to be updated for this field with new defaults
                 dg.Columns(bytDisplay - 1).Width = 30
                 dg.Columns(bytDisplay - 2).Width = 25
                 Settings.UserSettings("RowWidths") = UserSettings("RowWidths").Substring(0, UserSettings("RowWidths").LastIndexOf(",")) & ",25,30"
@@ -83,12 +83,12 @@ Module mdlMain
             ' Note: Level required is 80% of the highest level magic modifier, but the best way to calculate is to add .49 onto the level to make sure we have the maximum,
             ' and then multiply that by 1.25 (or divide by 0.8 if you prefer), and take the rounded result
             ' For example, if the level reqt is 8, then we take 8.49 * 1.25 = 10.6125 = 11  as opposed to incorrectly trying  8 * 1.25 = 10
-            Dim strLevel As String = IIf(newFullItem.Level <> 0, "AND Level<=" & Math.Round(1.25 * (newFullItem.Level + 0.49)), "")
+            Dim strLevel As String = IIf(newFullItem.Level <> 0, "AND Level<=" & Math.Round(1.25 * (newFullItem.Level + 0.49)), "").ToString
             Dim strDescription As String = ""
             If strForceDescription <> "" Then
                 strDescription = strForceDescription
             Else
-                strDescription = result("Description")
+                strDescription = result("Description").ToString
             End If
 
             Dim strWhere As String = "Description='" & strDescription & "' AND " & strGearType & "=True " & strLevel
@@ -103,13 +103,13 @@ Module mdlMain
 
     Public Function ConvertFilterToSQL(strRawFilter As String) As String
         Dim sb As New System.Text.StringBuilder
-        Dim strLines() As String = strRawFilter.Split(vbCrLf)
+        Dim strLines() As String = strRawFilter.Split(CChar(vbCrLf))
         lstTotalTypes.Clear()
         For Each strLine In strLines
-            Dim strElement() As String = strLine.Split(strD)
+            Dim strElement() As String = strLine.Split(CChar(strD))
             If strElement(1).CompareMultiple(StringComparison.Ordinal, "[Prefix Type]", "[Suffix Type]", "[Number of Prefixes]", _
                                              "[Number of Suffixes]", "[Implicit Type]", "[Number of Implicits]", "[Mod Total Value]", "[Total Number of Explicits]") = True Then
-                Dim strAndOr As String = IIf(strElement(2) = "<>", " AND ", " OR ") ' For <>, the multiple field OR conditions must become an AND condition to function correctly
+                Dim strAndOr As String = IIf(strElement(2) = "<>", " AND ", " OR ").ToString ' For <>, the multiple field OR conditions must become an AND condition to function correctly
                 Select Case strElement(1)   ' Element at second position is the datatable field
                     Case "[Number of Prefixes]"
                         strElement(1) = "[pcount]"
@@ -138,9 +138,9 @@ Module mdlMain
                         ' Check to see if there is a "/" in the value...if so, have to look at value1 and maxvalue1 for type1
                         If strElement(3).Contains("/") = True Then
                             Dim intLow As Integer = 0, intHigh As Integer = 0, blLow As Boolean = True, blHigh As Boolean = True
-                            If IsNumeric(strElement(3).Substring(0, strElement(3).IndexOf("/"))) Then intLow = strElement(3).Substring(0, strElement(3).IndexOf("/")) Else blLow = False
+                            If IsNumeric(strElement(3).Substring(0, strElement(3).IndexOf("/"))) Then intLow = CInt(strElement(3).Substring(0, strElement(3).IndexOf("/"))) Else blLow = False
                             If IsNumeric(strElement(3).Substring(strElement(3).IndexOf("/") + 1, strElement(3).Length - strElement(3).IndexOf("/") - 1)) Then _
-                                intHigh = strElement(3).Substring(strElement(3).IndexOf("/") + 1, strElement(3).Length - strElement(3).IndexOf("/") - 1) Else blHigh = False
+                                intHigh = CInt(strElement(3).Substring(strElement(3).IndexOf("/") + 1, strElement(3).Length - strElement(3).IndexOf("/") - 1)) Else blHigh = False
                             If blLow Then sb.Append(strElement(0) & "IIF([pt1]=" & strElement(4) & ",[pv1],0) + " & _
                               "IIF([pt2]=" & strElement(4) & ",[pv2],0) + " & _
                               "IIF([pt3]=" & strElement(4) & ",[pv3],0) + " & _
@@ -150,7 +150,7 @@ Module mdlMain
                               "IIF([it1]=" & strElement(4) & ",[iv1],0) + " & _
                               "IIF([it2]=" & strElement(4) & ",[iv2],0) + " & _
                               "IIF([it3]=" & strElement(4) & ",[iv3],0)" & _
-                              strElement(2) & intLow & strElement(5) & IIf(blHigh, " AND ", strElement(6)))
+                              strElement(2) & intLow & strElement(5) & IIf(blHigh, " AND ", strElement(6)).ToString)
                             If blHigh Then sb.Append(strElement(0) & "IIF([pt1]=" & strElement(4) & ",[pv1m],0) + " & _
                               "IIF([pt2]=" & strElement(4) & ",[pv2m],0) + " & _
                               "IIF([pt3]=" & strElement(4) & ",[pv3m],0) + " & _

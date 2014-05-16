@@ -12,10 +12,10 @@
 
     Private Sub RunQuery()
         Try
-            Dim query = From myItem In dtOverflow Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
+            Dim query = From myItem In dtOverflow Where myItem("ID").ToString = MyData(0) And myItem("Name").ToString = MyData(1)
             Dim dt As DataTable = query.CopyToDataTable()
             ' Add the row that is selected on the main form
-            Dim query2 = From myItem In dtRank Where myItem("ID") = MyData(0) And myItem("Name") = MyData(1)
+            Dim query2 = From myItem In dtRank Where myItem("ID").ToString = MyData(0) And myItem("Name").ToString = MyData(1)
             Dim dt2 As DataTable = query2.CopyToDataTable
             dt.ImportRow(dt2.Rows(0))
             Me.DataGridView1.DataSource = dt
@@ -31,22 +31,22 @@
         If e.RowIndex = -1 Then Exit Sub
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
-            If DataGridView1.CurrentRow.Cells("*").Value = "*" Then
-                If frmMain.FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).LevelGem = True Then frmMain.AddGemWarning(sb)
-                sb.Append(frmMain.RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value & DataGridView1.CurrentRow.Cells("Name").Value))
+            If DataGridView1.CurrentRow.Cells("*").Value.ToString = "*" Then
+                If frmMain.FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then frmMain.AddGemWarning(sb)
+                sb.Append(frmMain.RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value.ToString & DataGridView1.CurrentRow.Cells("Name").Value.ToString))
             Else
-                If frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).LevelGem = True Then frmMain.AddGemWarning(sb)
-                sb.Append(frmMain.RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value & DataGridView1.CurrentRow.Cells("Name").Value & DataGridView1.CurrentRow.Cells("Index").Value))
+                If frmMain.TempInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then frmMain.AddGemWarning(sb)
+                sb.Append(frmMain.RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value.ToString & DataGridView1.CurrentRow.Cells("Name").Value.ToString & DataGridView1.CurrentRow.Cells("Index").Value.ToString))
             End If
-            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "*" Then
-            frmMain.ShowModInfo(DataGridView1, frmMain.FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), frmMain.FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitPrefixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "" Then
-            frmMain.ShowModInfo(DataGridView1, frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitPrefixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "*" Then
-            frmMain.ShowModInfo(DataGridView1, frmMain.FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), frmMain.FullInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitSuffixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "" Then
-            frmMain.ShowModInfo(DataGridView1, frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value), frmMain.TempInventory(DataGridView1.Rows(e.RowIndex).Cells("Index").Value).ExplicitSuffixMods, GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1, e)
+            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value.ToString)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.ShowModInfo(DataGridView1, frmMain.FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), frmMain.FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.ShowModInfo(DataGridView1, frmMain.TempInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), frmMain.TempInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.ShowModInfo(DataGridView1, frmMain.FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), frmMain.FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.ShowModInfo(DataGridView1, frmMain.TempInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), frmMain.TempInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
         End If
     End Sub
 
@@ -66,21 +66,21 @@
             Exit Sub
         End If
         Dim strName As String = DataGridView1.Columns(e.ColumnIndex).Name.ToLower
-        Dim lngIndex As Long = DataGridView1.Rows(e.RowIndex).Cells("Index").Value
-        If strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "*" Then
-            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.FullInventory(lngIndex).ExplicitPrefixMods, strName, sender, e)
-        ElseIf strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "" Then
-            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.TempInventory(lngIndex).ExplicitPrefixMods, strName, sender, e)
-        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "*" Then
-            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.FullInventory(lngIndex).ExplicitSuffixMods, strName, sender, e)
-        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value = "" Then
-            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.TempInventory(lngIndex).ExplicitSuffixMods, strName, sender, e)
+        Dim intIndex As Integer = CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)
+        If strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.FullInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+        ElseIf strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.TempInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.FullInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.DataGridViewAddLevelBar(DataGridView1, frmMain.TempInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
         End If
     End Sub
 
     Private Sub DataGridView1_RowPostPaint(sender As Object, e As DataGridViewRowPostPaintEventArgs) Handles DataGridView1.RowPostPaint
         If e.RowIndex = -1 Then Exit Sub
-        If DataGridView1.Rows(e.RowIndex).Cells("*").Value = "*" Then
+        If DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
             frmMain.DataGridViewRowPostPaint(DataGridView1, frmMain.FullInventory, sender, e)
         Else
             frmMain.DataGridViewRowPostPaint(DataGridView1, frmMain.TempInventory, sender, e)

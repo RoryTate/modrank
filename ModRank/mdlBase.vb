@@ -3,7 +3,7 @@
         If IsNumeric(str) Then Return Long.Parse(str.ToString) : Exit Function
         If intStart < 0 Then intStart = 0
         If intEnd < 0 Then intEnd = 0
-        Dim blLimit As Boolean = IIf(intStart > 0 Or intEnd > 0, True, False)
+        Dim blLimit As Boolean = intStart > 0 Or intEnd > 0
         Dim sb As New System.Text.StringBuilder(str.Length)
         Dim intCounter As Integer = 0
         For Each ch As Char In str
@@ -12,7 +12,7 @@
             End If
             intCounter += 1
         Next
-        Return Single.Parse(IIf(sb.ToString = "", 0, sb.ToString))
+        Return Single.Parse(IIf(sb.ToString = "", 0, sb.ToString).ToString)
     End Function
 
     Public Function GetChars(str As String) As String
@@ -131,7 +131,7 @@
                 ReDim Preserve nameArray(i - 1)
                 sb.AppendLine(String.Join(",", Array.ConvertAll(Of Object, String)(nameArray, _
                                 Function(o As Object) If(o.ToString.Contains(","), _
-                                ControlChars.Quote & o.ToString & ControlChars.Quote, o))))
+                                ControlChars.Quote & o.ToString & ControlChars.Quote, o).ToString)))
             End If
             For Each dr As DataRow In sourceTable.Rows
                 sb.AppendLine(String.Join(",", Array.ConvertAll(Of Object, String)(dr.ItemArray, _

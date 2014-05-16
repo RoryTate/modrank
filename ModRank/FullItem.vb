@@ -24,7 +24,7 @@ Public Class FullItem
     Public Property ImplicitMods As New CloneableList(Of FullMod)
     Public Property Quality As Byte = 0
     Public Property Corrupted As Boolean
-    Public Property Rank As Integer
+    Public Property Rank As Single
     Public Property Percentile As Single
 End Class
 
@@ -45,8 +45,8 @@ Public Class FullMod
     Public Property BaseUpperV2 As Single       ' The possible highest value for the second mod (i.e. 18 for an 11-18 range)
     Public Property Weight As Single            ' The weight/rank given to the mod in the weights-*.csv file
     Public Property MiniLvl As Single           ' The item level associated with the mod (note: the actual max item level requirement is 80% of the largest mod level, rounded *down*)
-    Public Property ModLevelActual As Byte            ' The actual level of the mod (0-based) ("+10% to Fire Resistance" is the first entry possible, so would be level 0)
-    Public Property ModLevelMax As Byte                 ' The maximum level of the mod (0-based)
+    Public Property ModLevelActual As Integer            ' The actual level of the mod (0-based) ("+10% to Fire Resistance" is the first entry possible, so would be level 0)
+    Public Property ModLevelMax As Integer                 ' The maximum level of the mod (0-based)
     Public Property UnknownValues As Boolean = False  ' Some legacy items may have value ranges not listed in the mods datatable, use this to handle them
 End Class
 
@@ -60,7 +60,7 @@ Public Class CloneableList(Of T)
             Dim ICloneType As Type = Me(0).GetType.GetInterface("ICloneable", True)
             If Not (ICloneType Is Nothing) Then
                 For Each Value As T In Me
-                    NewList.Add(CType(Value, ICloneable).Clone)
+                    NewList.Add(CType(CType(Value, ICloneable).Clone, T))
                 Next
             Else
                 Dim MethodsList() As MethodInfo = Me(0).GetType.GetMethods
@@ -78,7 +78,7 @@ End Class
 Public MustInherit Class CloneableObject
     Implements System.ICloneable
 
-    Private Function Clone(ByVal vObj As Object)
+    Private Function Clone(ByVal vObj As Object) As Object
         If Not vObj Is Nothing Then
             If vObj.GetType.IsValueType OrElse vObj.GetType Is Type.GetType("System.String") Then
                 Return vObj

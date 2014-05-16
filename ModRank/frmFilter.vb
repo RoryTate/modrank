@@ -45,15 +45,16 @@ Public Class frmFilter
                 cmbOrderField.Items.Add("scount")
                 cmbOrderField.Items.Add("icount")
                 cmbOrderField.Items.Add("ecount")
+                For i = 1 To 6 : cmbOrderField.Items.Add("Tot" & i) : Next
                 ' Used to populate cmbText0 with the entries from the weights/mods file
                 For Each row As DataRow In dtWeights.Rows
-                    Dim strName As String = row("ExportField") & IIf(row("ExportField2") <> "", "/" & row("ExportField2"), "")
-                    If dtMods.Select("Description='" & row("Description") & "'")(0)("Prefix/Suffix") = "Prefix" Then
+                    Dim strName As String = row("ExportField").ToString & IIf(row("ExportField2").ToString <> "", "/" & row("ExportField2").ToString, "").ToString
+                    If dtMods.Select("Description='" & row("Description").ToString & "'")(0)("Prefix/Suffix").ToString = "Prefix" Then
                         If lstDistinctPre.IndexOf(strName) = -1 Then lstDistinctPre.Add(strName)
                     Else
                         If lstDistinctSuf.IndexOf(strName) = -1 Then lstDistinctSuf.Add(strName)
                     End If
-                    If row("Description") = "Base Item Found Rarity +%" Then lstDistinctSuf.Add("% increased Rarity of Items found")
+                    If row("Description").ToString = "Base Item Found Rarity +%" Then lstDistinctSuf.Add("% increased Rarity of Items found")
                     If strName.IndexOf("/") = -1 Then
                         If lstAllSingleMods.IndexOf(strName) = -1 Then lstAllSingleMods.Add(strName)
                     End If
@@ -77,7 +78,7 @@ Public Class frmFilter
 
     Private Sub cmdCancel_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles cmdCancel.Click
         For intCounter As Integer = intIndex To 0 Step -1
-            Dim btnTemp As Button = Me.Controls("cmdMinus" & intIndex)
+            Dim btnTemp As Button = CType(Me.Controls("cmdMinus" & intIndex), Button)
             btnTemp.PerformClick()
         Next
         txtOrderBy.Text = ""
@@ -102,13 +103,13 @@ Public Class frmFilter
         Dim sb As New System.Text.StringBuilder
         For intCounter As Integer = 0 To intIndex
             Dim strLeftBrak As String = Me.Controls("txtLeftBrak" & intCounter).Text.ToString
-            Dim cmbFld As ComboBox = Me.Controls("cmbField" & intCounter)
+            Dim cmbFld As ComboBox = CType(Me.Controls("cmbField" & intCounter), ComboBox)
             Dim strOp As String = Me.Controls("cmbOperator" & intCounter).Text.ToString
-            Dim txtText As TextBox = Me.Controls("txtText" & intCounter)
-            Dim txtValue As TextBox = Me.Controls("txtValue" & intCounter)
-            Dim cmbText As ComboBox = Me.Controls("cmbText" & intCounter)
+            Dim txtText As TextBox = CType(Me.Controls("txtText" & intCounter), TextBox)
+            Dim txtValue As TextBox = CType(Me.Controls("txtValue" & intCounter), TextBox)
+            Dim cmbText As ComboBox = CType(Me.Controls("cmbText" & intCounter), ComboBox)
             Dim strRightBrak As String = Me.Controls("txtRightBrak" & intCounter).Text.ToString
-            Dim strAndOr As String = IIf(intCounter <> intIndex, " " & Me.Controls("cmbAndOr" & intCounter).Text.ToString & " ", "")
+            Dim strAndOr As String = IIf(intCounter <> intIndex, " " & Me.Controls("cmbAndOr" & intCounter).Text.ToString & " ", "").ToString
 
             If cmbFld.SelectedIndex <> -1 Or (cmbText.Visible And (cmbText.SelectedIndex <> -1 Or cmbText.Text.Length <> 0)) Then
                 If strOp.Equals("LIKE") And ((cmbText.Visible = False And (txtText.Text.IndexOf("*") <> -1 Or txtText.Text.IndexOf("%") <> -1)) Or _
@@ -120,7 +121,7 @@ Public Class frmFilter
                 Dim strTemp As String = "", strInner As String = ""
                 If cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Number of Prefixes", "Number of Suffixes", "Implicit Type", "Number of Implicits", "Mod Total Value", "Total Number of Explicits") = False Then
                     If dtRank.Columns(cmbFld.Text).DataType = System.Type.GetType("System.String") Then
-                        strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "") & IIf(cmbText.Visible, cmbText.Text, txtText.Text) & IIf(strOp.Equals("LIKE"), "%", "") & "'"
+                        strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
                     ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Rank", "Level", "Sokt", "Link", "%") = True Then
                         If strOp.Equals("LIKE") Then
                             MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
@@ -130,12 +131,12 @@ Public Class frmFilter
                             MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for numeric field '" & cmbFld.Text & "'.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                             Return ""
                         End If
-                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text)
+                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
                     Else
-                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text)
+                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
                     End If
                 ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Implicit Type") = True Then
-                    strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "") & IIf(cmbText.Visible, cmbText.Text, txtText.Text) & IIf(strOp.Equals("LIKE"), "%", "") & "'"
+                    strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
                 ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Number of Prefixes", "Number of Suffixes", "Number of Implicits", "Total Number of Explicits") = True Then
                     If strOp.Equals("LIKE") Then
                         MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
@@ -145,7 +146,7 @@ Public Class frmFilter
                         MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for numeric field '" & cmbFld.Text & "'.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         Return ""
                     End If
-                    strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text)
+                    strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
                 ElseIf cmbFld.Text = "Mod Total Value" Then
                     If strOp.Equals("LIKE") Then
                         MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
@@ -172,7 +173,7 @@ Public Class frmFilter
             End If
         Next
         If intBrak <> 0 Then
-            MessageBox.Show("Unable to apply/save the filter. The filter is invalid because it is missing " & IIf(intBrak < 0, Math.Abs(intBrak) & " opening", intBrak & " closing") & " bracket(s). Please fix this and try activating again.", _
+            MessageBox.Show("Unable to apply/save the filter. The filter is invalid because it is missing " & IIf(intBrak < 0, Math.Abs(intBrak) & " opening", intBrak & " closing").ToString & " bracket(s). Please fix this and try activating again.", _
                             "Invalid Filter: Missing Brackets", MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1)
             Return ""
         End If
@@ -191,6 +192,7 @@ Public Class frmFilter
     Private Sub cmdPlus0_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles cmdPlus0.Click
         Try
             Dim intCurrentIndex As Integer = GetNumeric(sender.name.ToString)
+            Dim intTab = DirectCast(sender, Button).TabIndex
             If intCurrentIndex <> intIndex Then
                 For intCounter As Integer = intIndex To intCurrentIndex + 1 Step -1
                     For Each strName In {"txtLeftBrak", "cmbField", "cmbOperator", "txtText", "txtValue", "cmbText", "txtRightBrak", "cmbAndOr", "cmdMinus", "cmdPlus"}
@@ -204,15 +206,18 @@ Public Class frmFilter
             Dim arr(,) As Control = {{txtLeftBrak, txtLeftBrak0}, {cmbField, cmbField0}, {cmbOperator, cmbOperator0}, {txtText, txtText0}, {txtValue, txtValue0}, {cmbText, cmbText0}, {txtRightBrak, txtRightBrak0}, {cmbAndOr, cmbAndOr0}, {cmdMinus, cmdMinus0}, {cmdPlus, cmdPlus0}}
             For i = 0 To UBound(arr, 1)
                 arr(i, 0).Name = GetChars(arr(i, 1).Name) & intCurrentIndex + 1
-                arr(i, 0).Width = IIf(arr(i, 0).Name.Contains("cmbText"), intMaxWidth, arr(i, 1).Width)
-                arr(i, 0).Left = IIf(arr(i, 0).Name.Contains("cmbText"), intLeft, arr(i, 1).Left)
+                arr(i, 0).Width = CInt(IIf(arr(i, 0).Name.Contains("cmbText"), intMaxWidth, arr(i, 1).Width))
+                arr(i, 0).Left = CInt(IIf(arr(i, 0).Name.Contains("cmbText"), intLeft, arr(i, 1).Left))
                 arr(i, 0).Height = arr(i, 1).Height
                 arr(i, 0).Top = Me.Controls(GetChars(arr(i, 1).Name) & intCurrentIndex).Top + intHeight
+                arr(i, 0).TabIndex = 11 + (intIndex * 10) + i
                 ToolTip1.SetToolTip(arr(i, 0), ToolTip1.GetToolTip(arr(i, 1)))
                 If arr(i, 1).Name.Contains("cmb") Then
                     Dim cmbTemp As ComboBox = DirectCast(arr(i, 0), ComboBox) : Dim cmbTemp2 As ComboBox = DirectCast(arr(i, 1), ComboBox)
                     cmbTemp.DropDownStyle = cmbTemp2.DropDownStyle
                     cmbTemp.DropDownWidth = cmbTemp2.DropDownWidth
+                    'cmbTemp.AutoCompleteMode = cmbTemp2.AutoCompleteMode
+                    'cmbTemp.AutoCompleteSource = cmbTemp2.AutoCompleteSource
                     cmbTemp.MaxDropDownItems = 32
                 End If
                 If arr(i, 1).Name.Contains("cmbText") Then arr(i, 0).Visible = False
@@ -225,6 +230,10 @@ Public Class frmFilter
             cmbOrderField.Top += intHeight : cmbAscDesc.Top += intHeight : btnAddOrdering.Top += intHeight
             lblOrderBy.Top += intHeight : txtOrderBy.Top += intHeight
             cmdActivate.Top += intHeight : cmdCancel.Top += intHeight
+            ' We'll be adding new items in, so increment the tabindex of the items "below" them on the form
+            For Each ctl As Control In {cmbOrderField, cmbAscDesc, btnAddOrdering, lblOrderBy, txtOrderBy, cmdActivate, cmdCancel}
+                ctl.TabIndex += 11
+            Next
             Me.Controls.AddRange(New Control() {txtLeftBrak, cmbField, cmbOperator, txtText, txtValue, cmbText, txtRightBrak, cmbAndOr, cmdMinus, cmdPlus})
             Dim obj(cmbField0.Items.Count - 1) As Object
             cmbField0.Items.CopyTo(obj, 0)
@@ -262,11 +271,11 @@ Public Class frmFilter
         cmbOrderField.Top -= intHeight : cmbAscDesc.Top -= intHeight : btnAddOrdering.Top -= intHeight
         lblOrderBy.Top -= intHeight : txtOrderBy.Top -= intHeight
         cmdActivate.Top -= intHeight : cmdCancel.Top -= intHeight
-        Dim txtLeftBrak As TextBox = Me.Controls("txtLeftBrak" & intCurrentIndex)
-        Dim cmbField As ComboBox = Me.Controls("cmbField" & intCurrentIndex)
-        Dim cmbText As ComboBox = Me.Controls("cmbText" & intCurrentIndex)
-        Dim txtRightBrak As TextBox = Me.Controls("txtRightBrak" & intCurrentIndex)
-        Dim cmbAndOr As ComboBox = Me.Controls("cmbAndOr" & intCurrentIndex)
+        Dim txtLeftBrak As TextBox = CType(Me.Controls("txtLeftBrak" & intCurrentIndex), TextBox)
+        Dim cmbField As ComboBox = CType(Me.Controls("cmbField" & intCurrentIndex), ComboBox)
+        Dim cmbText As ComboBox = CType(Me.Controls("cmbText" & intCurrentIndex), ComboBox)
+        Dim txtRightBrak As TextBox = CType(Me.Controls("txtRightBrak" & intCurrentIndex), TextBox)
+        Dim cmbAndOr As ComboBox = CType(Me.Controls("cmbAndOr" & intCurrentIndex), ComboBox)
         RemoveHandler cmbField.SelectedIndexChanged, AddressOf cmbFieldSelectedIndexChanged
         RemoveHandler Me.Controls("cmdMinus" & intCurrentIndex).Click, AddressOf MinusButtonClick
         RemoveHandler txtLeftBrak.TextChanged, AddressOf OnlyAllowBrackets
@@ -287,6 +296,9 @@ Public Class frmFilter
                 Me.Controls(strName & intCounter).Name = strName & intCounter - 1
             Next
         Next
+        For Each ctl As Control In {cmbOrderField, cmbAscDesc, btnAddOrdering, lblOrderBy, txtOrderBy, cmdActivate, cmdCancel}
+            ctl.TabIndex -= 11
+        Next
         intIndex -= 1
         Me.Height -= intHeight
     End Sub
@@ -301,7 +313,7 @@ Public Class frmFilter
         If cmbFld.SelectedIndex = -1 Or cmbFld.Text.Length = 0 Then Exit Sub
         Me.Cursor = Cursors.WaitCursor
         Application.DoEvents()
-        Dim cmbText As ComboBox = Me.Controls("cmbText" & intCurrentIndex)
+        Dim cmbText As ComboBox = CType(Me.Controls("cmbText" & intCurrentIndex), ComboBox)
         Me.Controls("txtValue" & intCurrentIndex).Visible = False
         If cmbFld.Text = "Prefix Type" Then
             cmbText.Left = intLeft : cmbText.Width = intMaxWidth
@@ -327,7 +339,7 @@ Public Class frmFilter
             cmbText.Left = intLeft + 44 : cmbText.Width = intMaxWidth - 44
             cmbText.Visible = True : Me.Controls("txtText" & intCurrentIndex).Visible = False
             cmbText.DataSource = lstAllSingleMods.Clone : cmbText.SelectedIndex = 0
-            Dim cmbOperator As ComboBox = Me.Controls("cmbOperator" & intCurrentIndex)
+            Dim cmbOperator As ComboBox = CType(Me.Controls("cmbOperator" & intCurrentIndex), ComboBox)
             cmbOperator.SelectedIndex = cmbOperator.FindStringExact(">=")     ' >= is the most common comparison for mod total value searches
             Me.Controls("txtValue" & intCurrentIndex).Visible = True : Me.Controls("txtValue" & intCurrentIndex).Focus()
         Else
@@ -357,7 +369,7 @@ Public Class frmFilter
 
         For x As Integer = 0 To txtBox.Text.Length - 1
             Letter = txtBox.Text.Substring(x, 1)
-            If Letter <> IIf(blLeftBracket, "(", ")") Then
+            If Letter <> IIf(blLeftBracket, "(", ")").ToString Then
                 theText = theText.Replace(Letter, String.Empty)
                 Change = 1
             End If
@@ -407,29 +419,29 @@ Public Class frmFilter
             If res = Windows.Forms.DialogResult.Cancel Then Exit Sub
 
             For intCounter As Integer = 0 To intIndex
-                Dim btnTemp As Button = Me.Controls("cmdMinus" & intIndex)
+                Dim btnTemp As Button = CType(Me.Controls("cmdMinus" & intIndex), Button)
                 btnTemp.PerformClick()
             Next
             txtOrderBy.Text = ""
 
             Dim intTemp As Integer = 0
             Dim strFilter As String = System.IO.File.ReadAllText(ofd.FileName)
-            Dim strLines() As String = strFilter.Split(vbCrLf)
+            Dim strLines() As String = strFilter.Split(CChar(vbCrLf))
             blFinishedLoading = False
             For Each strLine In strLines
-                Dim strElement() As String = strLine.Split(strD)
+                Dim strElement() As String = strLine.Split(CChar(strD))
                 If intTemp <> 0 And strElement(0).Trim <> "ORDER BY" Then cmdPlus0_Click(Me.Controls("cmdPlus" & intIndex), EventArgs.Empty)
                 If strElement(0).Trim = "ORDER BY" Then
                     For Each strE In strElement
                         If strE.Trim = "ORDER BY" Then Continue For
-                        txtOrderBy.Text = IIf(txtOrderBy.Text = "", txtOrderBy.Text, txtOrderBy.Text & " ") & strE.Trim
+                        txtOrderBy.Text = IIf(txtOrderBy.Text = "", txtOrderBy.Text, txtOrderBy.Text & " ").ToString & strE.Trim
                     Next
                     Continue For
                 End If
                 Me.Controls("txtLeftBrak" & intIndex).Text = strElement(0).Trim
                 Me.Controls("cmbField" & intIndex).Text = strElement(1).Substring(1, strElement(1).Length - 2)
                 Me.Controls("cmbOperator" & intIndex).Text = strElement(2)
-                Dim cmbText As ComboBox = Me.Controls("cmbText" & intIndex)
+                Dim cmbText As ComboBox = CType(Me.Controls("cmbText" & intIndex), ComboBox)
                 If strElement(1).CompareMultiple(StringComparison.Ordinal, "[Prefix Type]", "[Suffix Type]", "[Type]", "[Gem]", "[Crpt]") Then
                     Dim intFound As Integer = 0
                     If strElement(2) = "LIKE" Then
@@ -478,7 +490,7 @@ Public Class frmFilter
                 intTemp += 1
             Next
             ' Position the form vertically in the center of the screen...use max so that we don't go negative and lose the top control box
-            Me.Top = Math.Max((Screen.PrimaryScreen.Bounds.Height - Me.Height) / 2, 0)
+            Me.Top = CInt(Math.Max((Screen.PrimaryScreen.Bounds.Height - Me.Height) / 2, 0))
             blFinishedLoading = True
 
         Catch ex As Exception

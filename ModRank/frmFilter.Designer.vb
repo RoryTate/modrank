@@ -52,7 +52,7 @@ Partial Class frmFilter
         Me.cmdCancel.Margin = New System.Windows.Forms.Padding(2)
         Me.cmdCancel.Name = "cmdCancel"
         Me.cmdCancel.Size = New System.Drawing.Size(97, 21)
-        Me.cmdCancel.TabIndex = 4
+        Me.cmdCancel.TabIndex = 18
         Me.cmdCancel.Text = "&Deactivate/Exit"
         Me.cmdCancel.UseVisualStyleBackColor = True
         '
@@ -62,7 +62,7 @@ Partial Class frmFilter
         Me.cmdActivate.Margin = New System.Windows.Forms.Padding(2)
         Me.cmdActivate.Name = "cmdActivate"
         Me.cmdActivate.Size = New System.Drawing.Size(97, 21)
-        Me.cmdActivate.TabIndex = 5
+        Me.cmdActivate.TabIndex = 17
         Me.cmdActivate.Text = "&Activate"
         Me.cmdActivate.UseVisualStyleBackColor = True
         '
@@ -78,7 +78,7 @@ Partial Class frmFilter
         Me.cmbField0.MaxDropDownItems = 32
         Me.cmbField0.Name = "cmbField0"
         Me.cmbField0.Size = New System.Drawing.Size(107, 21)
-        Me.cmbField0.TabIndex = 6
+        Me.cmbField0.TabIndex = 3
         '
         'cmbOperator0
         '
@@ -91,7 +91,7 @@ Partial Class frmFilter
         Me.cmbOperator0.MaxDropDownItems = 32
         Me.cmbOperator0.Name = "cmbOperator0"
         Me.cmbOperator0.Size = New System.Drawing.Size(46, 21)
-        Me.cmbOperator0.TabIndex = 7
+        Me.cmbOperator0.TabIndex = 4
         '
         'txtText0
         '
@@ -99,7 +99,7 @@ Partial Class frmFilter
         Me.txtText0.Margin = New System.Windows.Forms.Padding(2)
         Me.txtText0.Name = "txtText0"
         Me.txtText0.Size = New System.Drawing.Size(197, 22)
-        Me.txtText0.TabIndex = 8
+        Me.txtText0.TabIndex = 7
         '
         'cmdMinus0
         '
@@ -107,7 +107,7 @@ Partial Class frmFilter
         Me.cmdMinus0.Margin = New System.Windows.Forms.Padding(2)
         Me.cmdMinus0.Name = "cmdMinus0"
         Me.cmdMinus0.Size = New System.Drawing.Size(16, 22)
-        Me.cmdMinus0.TabIndex = 9
+        Me.cmdMinus0.TabIndex = 10
         Me.cmdMinus0.Text = "-"
         Me.cmdMinus0.TextAlign = System.Drawing.ContentAlignment.MiddleRight
         Me.cmdMinus0.UseVisualStyleBackColor = True
@@ -118,7 +118,7 @@ Partial Class frmFilter
         Me.cmdPlus0.Margin = New System.Windows.Forms.Padding(2)
         Me.cmdPlus0.Name = "cmdPlus0"
         Me.cmdPlus0.Size = New System.Drawing.Size(16, 22)
-        Me.cmdPlus0.TabIndex = 10
+        Me.cmdPlus0.TabIndex = 11
         Me.cmdPlus0.Text = "+"
         Me.cmdPlus0.UseVisualStyleBackColor = True
         '
@@ -133,7 +133,7 @@ Partial Class frmFilter
         Me.cmbText0.MaxDropDownItems = 32
         Me.cmbText0.Name = "cmbText0"
         Me.cmbText0.Size = New System.Drawing.Size(197, 21)
-        Me.cmbText0.TabIndex = 11
+        Me.cmbText0.TabIndex = 6
         Me.cmbText0.Visible = False
         '
         'txtLeftBrak0
@@ -142,7 +142,7 @@ Partial Class frmFilter
         Me.txtLeftBrak0.Margin = New System.Windows.Forms.Padding(2)
         Me.txtLeftBrak0.Name = "txtLeftBrak0"
         Me.txtLeftBrak0.Size = New System.Drawing.Size(18, 22)
-        Me.txtLeftBrak0.TabIndex = 12
+        Me.txtLeftBrak0.TabIndex = 2
         Me.ToolTip1.SetToolTip(Me.txtLeftBrak0, "Place opening brackets here if order of precendence is required.")
         '
         'txtRightBrak0
@@ -151,7 +151,7 @@ Partial Class frmFilter
         Me.txtRightBrak0.Margin = New System.Windows.Forms.Padding(2)
         Me.txtRightBrak0.Name = "txtRightBrak0"
         Me.txtRightBrak0.Size = New System.Drawing.Size(18, 22)
-        Me.txtRightBrak0.TabIndex = 13
+        Me.txtRightBrak0.TabIndex = 8
         Me.ToolTip1.SetToolTip(Me.txtRightBrak0, "Place closing brackets here if order of precendence is required.")
         '
         'btnSave
@@ -160,7 +160,7 @@ Partial Class frmFilter
         Me.btnSave.Margin = New System.Windows.Forms.Padding(2)
         Me.btnSave.Name = "btnSave"
         Me.btnSave.Size = New System.Drawing.Size(125, 21)
-        Me.btnSave.TabIndex = 14
+        Me.btnSave.TabIndex = 0
         Me.btnSave.Text = "&Save Search/Filter"
         Me.btnSave.UseVisualStyleBackColor = True
         '
@@ -170,7 +170,7 @@ Partial Class frmFilter
         Me.btnLoad.Margin = New System.Windows.Forms.Padding(2)
         Me.btnLoad.Name = "btnLoad"
         Me.btnLoad.Size = New System.Drawing.Size(125, 21)
-        Me.btnLoad.TabIndex = 15
+        Me.btnLoad.TabIndex = 1
         Me.btnLoad.Text = "&Load Search/Filter"
         Me.btnLoad.UseVisualStyleBackColor = True
         '
@@ -185,7 +185,7 @@ Partial Class frmFilter
         Me.cmbOrderField.MaxDropDownItems = 32
         Me.cmbOrderField.Name = "cmbOrderField"
         Me.cmbOrderField.Size = New System.Drawing.Size(147, 21)
-        Me.cmbOrderField.TabIndex = 16
+        Me.cmbOrderField.TabIndex = 12
         '
         'btnAddOrdering
         '
@@ -193,7 +193,7 @@ Partial Class frmFilter
         Me.btnAddOrdering.Margin = New System.Windows.Forms.Padding(2)
         Me.btnAddOrdering.Name = "btnAddOrdering"
         Me.btnAddOrdering.Size = New System.Drawing.Size(97, 21)
-        Me.btnAddOrdering.TabIndex = 17
+        Me.btnAddOrdering.TabIndex = 14
         Me.btnAddOrdering.Text = "Add &Ordering"
         Me.btnAddOrdering.UseVisualStyleBackColor = True
         '
@@ -209,7 +209,7 @@ Partial Class frmFilter
         Me.cmbAscDesc.MaxDropDownItems = 32
         Me.cmbAscDesc.Name = "cmbAscDesc"
         Me.cmbAscDesc.Size = New System.Drawing.Size(68, 21)
-        Me.cmbAscDesc.TabIndex = 18
+        Me.cmbAscDesc.TabIndex = 13
         '
         'txtOrderBy
         '
@@ -217,7 +217,7 @@ Partial Class frmFilter
         Me.txtOrderBy.Margin = New System.Windows.Forms.Padding(2)
         Me.txtOrderBy.Name = "txtOrderBy"
         Me.txtOrderBy.Size = New System.Drawing.Size(429, 22)
-        Me.txtOrderBy.TabIndex = 19
+        Me.txtOrderBy.TabIndex = 16
         '
         'lblOrderBy
         '
@@ -225,7 +225,7 @@ Partial Class frmFilter
         Me.lblOrderBy.Location = New System.Drawing.Point(12, 108)
         Me.lblOrderBy.Name = "lblOrderBy"
         Me.lblOrderBy.Size = New System.Drawing.Size(55, 13)
-        Me.lblOrderBy.TabIndex = 20
+        Me.lblOrderBy.TabIndex = 15
         Me.lblOrderBy.Text = "Order By:"
         '
         'ToolTip1
@@ -246,7 +246,7 @@ Partial Class frmFilter
         Me.cmbAndOr0.MaxDropDownItems = 32
         Me.cmbAndOr0.Name = "cmbAndOr0"
         Me.cmbAndOr0.Size = New System.Drawing.Size(47, 21)
-        Me.cmbAndOr0.TabIndex = 21
+        Me.cmbAndOr0.TabIndex = 9
         '
         'txtValue0
         '
@@ -254,7 +254,7 @@ Partial Class frmFilter
         Me.txtValue0.Margin = New System.Windows.Forms.Padding(2)
         Me.txtValue0.Name = "txtValue0"
         Me.txtValue0.Size = New System.Drawing.Size(40, 22)
-        Me.txtValue0.TabIndex = 22
+        Me.txtValue0.TabIndex = 5
         Me.txtValue0.Visible = False
         '
         'frmFilter
