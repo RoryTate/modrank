@@ -494,15 +494,18 @@ Public Class frmMain
 
             ' Get only the gear types out of the temp inventory list (we don't need gems, maps, currency, etc)
             statusCounter = 0 : lngModCounter = 0
-            Dim query As IEnumerable(Of Item) = TempInventoryAll.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" AndAlso Item.TypeLine.ToLower.Contains("map") = False)
+            Dim query As IEnumerable(Of Item) = TempInventoryAll.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" _
+                                                                           AndAlso Item.TypeLine.ToLower.Contains("map") = False AndAlso Item.TypeLine.ToLower.Contains("peninsula") = False)
             AddToFullInventory(query, False)
 
             For Each league In Leagues
+                CurrentLeague = league
                 FullStash = Model.GetStash(league)
                 Dim TempStash As New List(Of Item)
                 TempStash = FullStash.Get(Of Item)()
 
-                query = TempStash.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" AndAlso Item.TypeLine.ToLower.Contains("map") = False)
+                query = TempStash.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" _
+                                            AndAlso Item.TypeLine.ToLower.Contains("map") = False AndAlso Item.TypeLine.ToLower.Contains("peninsula") = False)
                 AddToFullInventory(query, True)
             Next
 
@@ -1776,7 +1779,7 @@ AddMod2:
                     RankExplanation(strRankKey) = ""
                     For Each ModList In {it.ExplicitPrefixMods, it.ExplicitSuffixMods}
                         Dim strAffix As String = ""
-                        If ModList.Count <> it.ExplicitPrefixMods.Count Then
+                        If ModList.Count <> it.ExplicitPrefixMods.Count Or ModList.Count = 0 Then
                             strAffix = "Suffix"
                         Else
                             If ModList(0).FullText <> it.ExplicitPrefixMods(0).FullText Then strAffix = "Suffix" Else strAffix = "Prefix"
@@ -1800,7 +1803,8 @@ AddMod2:
                             RankExplanation(strRankKey) += vbCrLf & vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", it.Rank) & ")  (running total)" & vbCrLf
                         Next
                     Next
-                    RankExplanation(strRankKey) = RankExplanation(strRankKey).Substring(0, RankExplanation(strRankKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
+                    If RankExplanation(strRankKey).LastIndexOf("(running total)") <> -1 Then _
+                        RankExplanation(strRankKey) = RankExplanation(strRankKey).Substring(0, RankExplanation(strRankKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
                     lngCounter += 1
                     If lngCounter Mod 10 = 0 Then
                         Me.Invoke(New MyDelegate(AddressOf PBPerformStep))

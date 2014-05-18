@@ -143,7 +143,7 @@ namespace POEApi.Model
                                  "Bog Map", "Coves Map", "Graveyard Map", "Pier Map", "Underground Sea Map", "Villa Map",
                                  "Arachnid Nest Map", "Colonnade Map", "Dry Woods Map", "Strand Map", "Temple Map",
                                  "Jungle Valley Map", "Labyrinth Map", "Mine Map", "Torture Chamber Map", "Waste Pool Map",
-                                 "Canyon Map", "Cells Map", "Dark Forest Map", "Dry Peninsula Map",
+                                 "Canyon Map", "Cells Map", "Dark Forest Map", "Dry Peninsula Map", "Dry Peninsula",
                                  "Gorge Map", "Maze Map", "Residence Map", "Underground River Map",
                                  "Bazaar Map", "Necropolis Map", "Plateau Map",
                                  "Academy Map", "Crematorium Map", "Precinct Map",
