@@ -2633,15 +2633,6 @@ AddMod2:
             Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), DataGridView2)
 
             If strStoreFilter.Trim <> "" Then ApplyFilter(dtStore, dtStoreOverflow, DataGridView2, lblRecordCount2, strStoreOrderBy, strStoreFilter)
-            Dim password As SecureString
-            If blFormChanged Then
-                password = CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {WPFPassword, "SecurePassword"}), SecureString)
-            Else
-                password = UserSettings("AccountPassword").Decrypt
-            End If
-            Email = Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {txtEmail, "Text"}).ToString
-            useSession = CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {chkSession, "Checked"}), Boolean)
-            saveSettings(password)
             If FullInventory.Count <> 0 Then
                 EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
             Else
