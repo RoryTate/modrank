@@ -2453,6 +2453,7 @@ AddMod2:
             Dim storeQuery As IEnumerable(Of JSON_Store) = storeMerge.Where(Function(Item) Item.Rarity_Name = "Rare" AndAlso Item.Name.ToLower <> "" _
                                                    AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False)
             If storeQuery.Count = 0 Then
+                Me.Invoke(New MyDelegate(AddressOf PBClose))
                 MessageBox.Show("No items found", "No Items Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 If FullInventory.Count <> 0 Then
                     EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
