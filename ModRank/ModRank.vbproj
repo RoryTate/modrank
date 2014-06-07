@@ -25,8 +25,8 @@
     <MapFileExtensions>true</MapFileExtensions>
     <SupportUrl>https://github.com/RoryTate/modrank</SupportUrl>
     <ProductName>ModRank</ProductName>
-    <ApplicationRevision>1</ApplicationRevision>
-    <ApplicationVersion>0.9.5.1</ApplicationVersion>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>0.9.9.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -92,6 +92,7 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml" />
@@ -122,6 +123,12 @@
     <Compile Include="frmFilter.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="frmLocation.Designer.vb">
+      <DependentUpon>frmLocation.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmLocation.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="frmResults.Designer.vb">
       <DependentUpon>frmResults.vb</DependentUpon>
     </Compile>
@@ -135,6 +142,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FullItem.vb" />
+    <Compile Include="JSON_Store.vb" />
     <Compile Include="mdlBase.vb" />
     <Compile Include="mdlMain.vb" />
     <Compile Include="statusController.vb" />
@@ -166,6 +174,9 @@
   <ItemGroup>
     <EmbeddedResource Include="frmFilter.resx">
       <DependentUpon>frmFilter.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmLocation.resx">
+      <DependentUpon>frmLocation.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmMain.resx">
       <DependentUpon>frmMain.vb</DependentUpon>

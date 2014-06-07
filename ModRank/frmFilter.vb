@@ -5,6 +5,7 @@ Public Class frmFilter
     Public Delegate Sub ClickDelegate(ByVal sender As Object, ByVal e As EventArgs)
     Public Delegate Sub FillComboBox(ByVal strCombo As String, ByVal ds As DataSet)
     Public blFinishedLoading As Boolean = False
+    Public blStore As Boolean
     Public intMaxWidth As Integer   ' The max width of the cmbText0 combo box on load, since we may have to change its width depending on user selection
     Public intLeft As Integer   ' The left position of the cmbText0 combo box on load
     Public lstDistinctPre As New CloneableList(Of String)
@@ -34,8 +35,13 @@ Public Class frmFilter
                             cmbField0.Items.Add("Number of Implicits")
                             cmbField0.Items.Add("Mod Total Value")
                             cmbField0.Items.Add("Total Number of Explicits")
+                            If blStore = True Then cmbField0.Items.Add("Price") : cmbField0.Items.Add("ThreadID")
                             blAddedSpecialFields = True
                         End If
+                        Continue For
+                    ElseIf col.ColumnName = "Sokt" Then
+                        cmbField0.Items.Add("Sokt")
+                        cmbField0.Items.Add("Socket Colour and Links")
                         Continue For
                     End If
                     cmbField0.Items.Add(col.ColumnName)
@@ -63,7 +69,14 @@ Public Class frmFilter
                 ' Used to populate cmbText0 with the list of types
                 Dim items As Array = System.Enum.GetValues(GetType(POEApi.Model.GearType))
                 For Each intType As Integer In items
-                    If items(intType).ToString.CompareMultiple(StringComparison.Ordinal, "Unknown", "Flask", "Map", "QuestItem") = False Then lstType.Add(items(intType).ToString)
+                    If items(intType).ToString.CompareMultiple(StringComparison.Ordinal, "Unknown", "Flask", "Map", "QuestItem") = False Then
+                        If items(intType).ToString.CompareMultiple(StringComparison.Ordinal, "Sword", "Axe", "Mace") = True Then
+                            lstType.Add(items(intType).ToString & " (1h)")
+                            lstType.Add(items(intType).ToString & " (2h)")
+                        Else
+                            lstType.Add(items(intType).ToString)
+                        End If
+                    End If
                 Next
                 lstType.Sort()
                 cmbField0.SelectedIndex = 0
@@ -81,8 +94,13 @@ Public Class frmFilter
             Dim btnTemp As Button = CType(Me.Controls("cmdMinus" & intIndex), Button)
             btnTemp.PerformClick()
         Next
-        txtOrderBy.Text = ""
-        If strFilter.Length <> 0 Then frmMain.SetFilter("")
+        If blStore = True Then
+            txtOrderBy.Text = ""
+            If strStoreFilter.Length <> 0 Then frmMain.SetStoreFilter("")
+        Else
+            txtOrderBy.Text = ""
+            If strFilter.Length <> 0 Then frmMain.SetFilter("")
+        End If
         Me.Close()
     End Sub
 
@@ -90,7 +108,11 @@ Public Class frmFilter
         Try
             strRawFilter = CreateFilter()
             If strRawFilter <> "" Then
-                frmMain.SetFilter(strRawFilter)
+                If blStore = True Then
+                    frmMain.SetStoreFilter(strRawFilter)
+                Else
+                    frmMain.SetFilter(strRawFilter)
+                End If
                 Me.Close()
             End If
         Catch ex As Exception
@@ -119,40 +141,63 @@ Public Class frmFilter
                 End If
                 Dim intTest As Integer, sngTest As Single
                 Dim strTemp As String = "", strInner As String = ""
-                If cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Number of Prefixes", "Number of Suffixes", "Implicit Type", "Number of Implicits", "Mod Total Value", "Total Number of Explicits") = False Then
+                If cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Number of Prefixes", "Number of Suffixes", "Implicit Type", _
+                                               "Number of Implicits", "Mod Total Value", "Total Number of Explicits", "Socket Number/Colour", "Socket Colour and Links", "Price") = False Then
                     If dtRank.Columns(cmbFld.Text).DataType = System.Type.GetType("System.String") Then
-                        strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
+                        strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
                     ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Rank", "Level", "Sokt", "Link", "%") = True Then
                         If strOp.Equals("LIKE") Then
                             MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                             Return ""
                         End If
-                        If Integer.TryParse(txtText.Text, intTest) = False And Single.TryParse(txtText.Text, sngTest) = False Then  ' Test for numeric values
+                        If Integer.TryParse(txtText.Text.Trim, intTest) = False And Single.TryParse(txtText.Text.Trim, sngTest) = False Then  ' Test for numeric values
                             MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for numeric field '" & cmbFld.Text & "'.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                             Return ""
                         End If
-                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
+                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim
                     Else
-                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
+                        strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim
                     End If
-                ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Implicit Type") = True Then
-                    strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
+                ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Prefix Type", "Suffix Type", "Implicit Type", "Socket Colour and Links") = True Then
+                    If strOp.Equals("LIKE") And txtText.Text.Trim.Contains(" ") Then
+                        MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with multiple socket colour string searches. Try adding each colour string as its own condition with an AND clause.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
+                        Return ""
+                    End If
+                    strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
                 ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Number of Prefixes", "Number of Suffixes", "Number of Implicits", "Total Number of Explicits") = True Then
                     If strOp.Equals("LIKE") Then
                         MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         Return ""
                     End If
-                    If Integer.TryParse(txtText.Text, intTest) = False And Single.TryParse(txtText.Text, sngTest) = False Then
+                    If Integer.TryParse(txtText.Text.Trim, intTest) = False And Single.TryParse(txtText.Text.Trim, sngTest) = False Then
                         MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for numeric field '" & cmbFld.Text & "'.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         Return ""
                     End If
-                    strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString
+                    strTemp = IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim
+                ElseIf cmbFld.Text = "Price" Then
+                    If strOp.Equals("LIKE") Then
+                        MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
+                        Return ""
+                    End If
+                    If Integer.TryParse(txtValue.Text.Trim, intTest) = False And Single.TryParse(txtValue.Text.Trim, sngTest) = False And txtValue.Text.Contains("/") = False Then
+                        MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for the value field.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
+                        txtValue.SelectAll() : txtValue.Focus()
+                        Return ""
+                    End If
+                    If cmbText.SelectedIndex = -1 Then
+                        MessageBox.Show("Unable to apply/save the filter. You must select an orb type.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
+                        cmbText.DroppedDown = True
+                        Return ""
+                    End If
+                    strInner = "[" & cmbFld.Text & "]" & strD & strOp & strD & txtValue.Text.Trim & strD & "'" & cmbText.Text.Trim & "'"
+                    sb.Append(strLeftBrak & strD & strInner & strD & strRightBrak & strD & strAndOr & vbCrLf)
+                    Continue For
                 ElseIf cmbFld.Text = "Mod Total Value" Then
                     If strOp.Equals("LIKE") Then
                         MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         Return ""
                     End If
-                    If Integer.TryParse(txtValue.Text, intTest) = False And Single.TryParse(txtValue.Text, sngTest) = False And txtValue.Text.Contains("/") = False Then
+                    If Integer.TryParse(txtValue.Text.Trim, intTest) = False And Single.TryParse(txtValue.Text.Trim, sngTest) = False And txtValue.Text.Contains("/") = False Then
                         MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for the value field.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         txtValue.SelectAll() : txtValue.Focus()
                         Return ""
@@ -162,7 +207,7 @@ Public Class frmFilter
                         cmbText.DroppedDown = True
                         Return ""
                     End If
-                    strInner = "[" & cmbFld.Text & "]" & strD & strOp & strD & txtValue.Text & strD & "'" & cmbText.Text & "'"
+                    strInner = "[" & cmbFld.Text & "]" & strD & strOp & strD & txtValue.Text.Trim & strD & "'" & cmbText.Text.Trim & "'"
                     sb.Append(strLeftBrak & strD & strInner & strD & strRightBrak & strD & strAndOr & vbCrLf)
                     Continue For
                 End If
@@ -342,6 +387,13 @@ Public Class frmFilter
             Dim cmbOperator As ComboBox = CType(Me.Controls("cmbOperator" & intCurrentIndex), ComboBox)
             cmbOperator.SelectedIndex = cmbOperator.FindStringExact(">=")     ' >= is the most common comparison for mod total value searches
             Me.Controls("txtValue" & intCurrentIndex).Visible = True : Me.Controls("txtValue" & intCurrentIndex).Focus()
+        ElseIf cmbFld.Text = "Price" Then
+            cmbText.Left = intLeft + 44 : cmbText.Width = intMaxWidth - 44
+            cmbText.Visible = True : Me.Controls("txtText" & intCurrentIndex).Visible = False
+            cmbText.DataSource = New String() {"Exa", "Chaos", "Alch", "GCP"} : cmbText.SelectedIndex = 0
+            Dim cmbOperator As ComboBox = CType(Me.Controls("cmbOperator" & intCurrentIndex), ComboBox)
+            cmbOperator.SelectedIndex = cmbOperator.FindStringExact("<=")     ' >= is the most common comparison for price searches
+            Me.Controls("txtValue" & intCurrentIndex).Visible = True : Me.Controls("txtValue" & intCurrentIndex).Focus()
         Else
             If cmbText.Visible = True Then cmbText.Visible = False : cmbText.DroppedDown = False
             If Me.Controls("txtValue" & intCurrentIndex).Visible = True Then Me.Controls("txtValue" & intCurrentIndex).Visible = False
@@ -391,7 +443,11 @@ Public Class frmFilter
         Try
             Dim sfd As New SaveFileDialog()
             If System.IO.Directory.Exists(Application.StartupPath & "\Filters") = False Then System.IO.Directory.CreateDirectory(Application.StartupPath & "\Filters")
-            sfd.InitialDirectory = Application.StartupPath & "\Filters"
+            If blStore = True Then
+                sfd.InitialDirectory = Application.StartupPath & "\Store\Filters"
+            Else
+                sfd.InitialDirectory = Application.StartupPath & "\Filters"
+            End If
             sfd.CreatePrompt = False
             sfd.OverwritePrompt = True
             sfd.FileName = "myfilter"
@@ -412,7 +468,11 @@ Public Class frmFilter
         Try
             Dim ofd As New OpenFileDialog
             If System.IO.Directory.Exists(Application.StartupPath & "\Filters") = False Then System.IO.Directory.CreateDirectory(Application.StartupPath & "\Filters")
-            ofd.InitialDirectory = Application.StartupPath & "\Filters"
+            If blSTore = True Then
+                ofd.InitialDirectory = Application.StartupPath & "\Store\Filters"
+            Else
+                ofd.InitialDirectory = Application.StartupPath & "\Filters"
+            End If
             ofd.Filter = "Text File|*.txt"
             ofd.Title = "Open Search/Filter"
             Dim res As DialogResult = ofd.ShowDialog(Me)
@@ -463,7 +523,7 @@ Public Class frmFilter
                             End If
                         End If
                     End If
-                ElseIf strElement(1) = "[Mod Total Value]" Then
+                ElseIf strElement(1) = "[Mod Total Value]" Or strElement(1) = "[Price]" Then
                     Me.Controls("txtValue" & intIndex).Text = strElement(3)
                     cmbText.SelectedIndex = cmbText.FindStringExact(strElement(4).Substring(1, strElement(4).Length - 2))
                     Me.Controls("txtRightBrak" & intIndex).Text = strElement(5).Trim
@@ -472,7 +532,7 @@ Public Class frmFilter
                     Continue For
                 ElseIf strElement(1).CompareMultiple(StringComparison.Ordinal, "[Number of Prefixes]", "[Number of Suffixes]", "[Number of Implicits]", "[Total Number of Explicits]") Then
                     Me.Controls("txtText" & intIndex).Text = strElement(3)
-                ElseIf strElement(1).CompareMultiple(StringComparison.Ordinal, "[Implicit Type]") Then
+                ElseIf strElement(1).CompareMultiple(StringComparison.Ordinal, "[Implicit Type]", "[Socket Count and Links]") Then
                     Me.Controls("txtText" & intIndex).Text = strElement(3).Substring(1, strElement(3).Length - 2)
                 ElseIf dtRank.Columns.Contains(strElement(1).Substring(1, strElement(1).Length - 2)) = True AndAlso _
                     dtRank.Columns(strElement(1).Substring(1, strElement(1).Length - 2)).DataType = System.Type.GetType("System.String") Then

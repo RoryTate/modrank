@@ -9,12 +9,15 @@ Public Class FullItem
     Public Property Location As String
     Public Property Rarity As Rarity
     Public Property Name As String
-    Public Property GearType As String
+    Public Property GearType As String      ' Ring, Amulet, Shield, etc (Note: Sword, Axe, Mace are split into Sword (1h), Sword (2h), etc)
     Public Property ItemType As String
     Public Property TypeLine As String
     Public Property H As Byte
     Public Property W As Byte
+    Public Property X As Integer
+    Public Property Y As Integer
     Public Property Sockets As Byte
+    Public Property Colours As String
     Public Property Links As Byte
     Public Property Level As Byte = 1
     Public Property LevelGem As Boolean
@@ -26,6 +29,8 @@ Public Class FullItem
     Public Property Corrupted As Boolean
     Public Property Rank As Single
     Public Property Percentile As Single
+    Public Property Price As Price
+    Public Property ThreadID As String = ""
 End Class
 
 Public Class FullMod

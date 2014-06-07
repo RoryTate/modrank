@@ -18,6 +18,9 @@ Imports System.Deployment.Application
 Public Class frmMain
     Public RecalculateThread As Threading.Thread
     Public ProgressBarThread As Threading.Thread
+    Public DownloadThread As Threading.Thread
+    Public LoadCacheThread As Threading.Thread
+    Public RefreshCacheThread As Threading.Thread
 
     Private WPFPassword As New PasswordBox
     Private statusBox As Windows.Controls.RichTextBox = New RichTextBox
@@ -25,8 +28,6 @@ Public Class frmMain
     Private blOffline As Boolean = False
 
     Public FullStash As Stash
-    Public Shared FullInventory As New List(Of FullItem)
-    Public Shared TempInventory As New List(Of FullItem)
     Public invLocation As New Dictionary(Of Item, String)
     Public Shared Characters As New List(Of Character)()
     Public Shared Leagues As New List(Of String)()
@@ -36,6 +37,8 @@ Public Class frmMain
     Public blAddedOne As Boolean = False    '  Used in the dynamic mod evaluation method, to help know when a mod contains "Legacy" values
     Public blScroll As Boolean = False
 
+    Public lngStoreCount As Long = 0
+
     Dim oldColorDark As Color = Color.FromArgb(127, 127, 127)
     Dim oldColorLight As Color = Color.FromArgb(195, 195, 195)
 
@@ -43,10 +46,15 @@ Public Class frmMain
 
     Private Delegate Sub FillCredentialsDelegate()
     Public Delegate Sub MyDelegate()
+    Public Delegate Sub MyDGDelegate(dg As DataGridView)
     Public Delegate Function MyDelegateFunction() As Object
+    Public Delegate Function DataGridCell(dg As DataGridView) As DataGridViewCell
+    Public Delegate Sub pbSetDefaults(intMax As Integer, strLabel As String)
     Public Delegate Sub MyClickDelegate(sender As Object, e As EventArgs)
 
     Public blRepopulated As Boolean = False
+
+    Private frmShopFilter As New frmFilter
 
     Private Shared m_currentCharacter As Character = Nothing
 
@@ -103,9 +111,11 @@ Public Class frmMain
         Try
             Me.Icon = GetEmbeddedIcon("ModRank.PoE.ico")
             Me.Text = "ModRank v" & My.Application.Info.Version.ToString
-
+            If System.IO.Directory.Exists(Application.StartupPath & "\Store") = False Then System.IO.Directory.CreateDirectory(Application.StartupPath & "\Store")
+            If System.IO.Directory.Exists(Application.StartupPath & "\Store\Filters") = False Then System.IO.Directory.CreateDirectory(Application.StartupPath & "\Store\Filters")
             ' Let's see if we can improve the display performance of the datagridview a bit...holy crap! This setting works unbelievably well!
             GetType(DataGridView).InvokeMember("DoubleBuffered", BindingFlags.NonPublic Or BindingFlags.Instance Or BindingFlags.SetProperty, Nothing, DataGridView1, New Object() {True})
+            GetType(DataGridView).InvokeMember("DoubleBuffered", BindingFlags.NonPublic Or BindingFlags.Instance Or BindingFlags.SetProperty, Nothing, DataGridView2, New Object() {True})
             gpLegend.Visible = False
             Dim baseImage As Bitmap = GetEmbeddedBitmap("ModRank.legend.png")
             Dim Colors() As Color = {ColorHasGem, ColorUnknownValue, ColorOtherSolutions, ColorNoModVariation}
@@ -216,12 +226,17 @@ Public Class frmMain
             dtRank.Columns.Add("Link", GetType(Byte))
             dtRank.Columns.Add("Qal", GetType(Byte))
             dtRank.Columns.Add("Crpt", GetType(Boolean))
+            dtRank.Columns.Add("Price", GetType(String))
+            dtRank.Columns.Add("PriceNum", GetType(Integer))
+            dtRank.Columns.Add("PriceOrb", GetType(String))
             dtRank.Columns.Add("Tot1", GetType(Single))
             dtRank.Columns.Add("Tot2", GetType(Single))
             dtRank.Columns.Add("Tot3", GetType(Single))
             dtRank.Columns.Add("Tot4", GetType(Single))
             dtRank.Columns.Add("Tot5", GetType(Single))
             dtRank.Columns.Add("Tot6", GetType(Single))
+            dtRank.Columns.Add("SktClrs", GetType(String))
+            dtRank.Columns.Add("SktClrsSearch", GetType(String))
             dtRank.Columns.Add("pft1", GetType(String))
             dtRank.Columns.Add("pt1", GetType(String))
             dtRank.Columns.Add("pt12", GetType(String))
@@ -271,6 +286,7 @@ Public Class frmMain
             dtRank.Columns.Add("iv3", GetType(Single))
             dtRank.Columns.Add("iv3m", GetType(Single))
             dtRank.Columns.Add("icount", GetType(Byte))
+            dtRank.Columns.Add("ThreadID", GetType(String))
             dtRank.Columns.Add("Index", GetType(Long))
             dtRank.Columns.Add("ID", GetType(String))
             Dim primaryKey(1) As DataColumn
@@ -279,6 +295,8 @@ Public Class frmMain
 
             dtOverflow = dtRank.Clone
             dtRankFilter = dtRank.Clone
+            dtStore = dtRank.Clone
+            dtStoreOverflow = dtRank.Clone
 
             WPFPassword.BorderThickness = New Windows.Thickness(1.0)
             Dim winColor As Color = SystemColors.Window
@@ -336,6 +354,12 @@ Public Class frmMain
             Dim strDoubleClick As String = "Click on any of the Rank, Prefix, Suffix, and * cells (where values exist) to get more detailed information on the item."
             ToolTip1.SetToolTip(lblDoubleClick, strDoubleClick)
 
+            Dim strDownload As String = "Enter poexplorer/GGG forum thread or full JSON URL in this box. For example:" & Environment.NewLine & Environment.NewLine & _
+                "796106" & Environment.NewLine & Environment.NewLine & _
+                "OR" & Environment.NewLine & Environment.NewLine & _
+                "http://poexplorer.com/threads/796106.json"
+            ToolTip1.SetToolTip(txtThread, strDownload)
+
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
@@ -371,7 +395,7 @@ Public Class frmMain
             If blReload Then
                 dtWeights.Clear()
                 dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & strSelection & ".csv")
-                If dtRank.Rows.Count <> 0 Then
+                If dtRank.Rows.Count <> 0 Or dtStore.Rows.Count <> 0 Then
                     ' Recalculate all the rankings based on the new weights
                     RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
                     RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
@@ -492,11 +516,12 @@ Public Class frmMain
 
             If Not blOffline Then statusController.DisplayMessage("Done loading character inventory data!")
 
+            Dim lngCount As Long = 0    ' Counter to keep track of where we are in temporary inventory additions (used by complex search algorithm)
             ' Get only the gear types out of the temp inventory list (we don't need gems, maps, currency, etc)
             statusCounter = 0 : lngModCounter = 0
             Dim query As IEnumerable(Of Item) = TempInventoryAll.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" _
                                                                            AndAlso Item.TypeLine.ToLower.Contains("map") = False AndAlso Item.TypeLine.ToLower.Contains("peninsula") = False)
-            AddToFullInventory(query, False)
+            AddToFullInventory(query, False, lngCount)
 
             For Each league In Leagues
                 CurrentLeague = league
@@ -506,7 +531,7 @@ Public Class frmMain
 
                 query = TempStash.Where(Function(Item) Item.ItemType = ItemType.Gear AndAlso Item.Name.ToLower <> "" _
                                             AndAlso Item.TypeLine.ToLower.Contains("map") = False AndAlso Item.TypeLine.ToLower.Contains("peninsula") = False)
-                AddToFullInventory(query, True)
+                AddToFullInventory(query, True, lngCount)
             Next
 
             statusController.DisplayMessage("Completed indexing all " & statusCounter & " stash rare items. comprising a total of approximately " & lngModCounter & " mods.")
@@ -518,10 +543,11 @@ Public Class frmMain
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
             Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("%").DefaultCellStyle, "Format", "n1"})
-            Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
+            Me.Invoke(New MyDGDelegate(AddressOf SortDataGridView), DataGridView1)
+            'Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
             Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
             Dim FirstCell As DataGridViewCell
-            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
+            FirstCell = Me.Invoke(New DataGridCell(AddressOf ReturnFirstCell), New Object() {DataGridView1})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "WindowState", FormWindowState.Maximized})
@@ -530,10 +556,12 @@ Public Class frmMain
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Left", 550})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Visible", True})
+            Me.Invoke(New MyDelegate(AddressOf BringLegendToFront))
             Dim intRows As Integer = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Visible", True})
-            Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
+            Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), DataGridView1)
+            'Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
             RemoveHandler Model.StashLoading, AddressOf model_StashLoading
             RemoveHandler Model.Throttled, AddressOf model_Throttled
             saveSettings(password)
@@ -543,7 +571,7 @@ Public Class frmMain
             'Next
 
             If strFilter.Trim <> "" Then
-                Dim FilterThread As New Threading.Thread(AddressOf ApplyFilter)
+                Dim FilterThread As New Threading.Thread(Sub() ApplyFilter(dtRank, dtOverflow, DataGridView1, lblRecordCount, strOrderBy, strFilter))
                 FilterThread.SetApartmentState(Threading.ApartmentState.STA)
                 FilterThread.Start()
             End If
@@ -557,27 +585,45 @@ Public Class frmMain
     End Sub
 
     Public Sub EnableDisableControls(blEnable As Boolean, Optional lstIgnore As List(Of String) = Nothing)
-        For Each ctl In Me.Controls
+        For Each ctl As System.Windows.Forms.Control In Me.Controls
             If lstIgnore Is Nothing = False AndAlso lstIgnore.Contains(ctl.Name) = True Then Continue For
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ctl, "Enabled", blEnable})
+            If ctl.HasChildren Then
+                For Each ctlChild As System.Windows.Forms.Control In ctl.Controls
+                    If lstIgnore Is Nothing = False AndAlso lstIgnore.Contains(ctlChild.Name) = True Then Continue For
+                    If ctlChild.HasChildren Then
+                        For Each ctlGrandChild As System.Windows.Forms.Control In ctlChild.Controls
+                            If lstIgnore Is Nothing = False AndAlso lstIgnore.Contains(ctlGrandChild.Name) = True Then Continue For
+                            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ctlGrandChild, "Enabled", blEnable})
+                        Next
+                    Else
+                        Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ctlChild, "Enabled", blEnable})
+                    End If
+                Next
+            Else
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {ctl, "Enabled", blEnable})
+            End If
         Next
     End Sub
 
-    Private Sub SetDataGridFocus()
-        Me.DataGridView1.Focus()
-        DataGridView1.UseWaitCursor = False
+    Private Sub SetDataGridFocus(dg As DataGridView)
+        dg.Focus()
+        dg.UseWaitCursor = False
     End Sub
 
     Private Sub DataGridRefresh()
         Me.DataGridView1.Refresh()
     End Sub
 
-    Private Sub DataGridClearSelection()
-        Me.DataGridView1.ClearSelection()
+    Private Sub DataGridClearSelection(dg As DataGridView)
+        dg.ClearSelection()
     End Sub
 
-    Private Sub SortDataGridView()
-        DataGridView1.Sort(DataGridView1.Columns(0), System.ComponentModel.ListSortDirection.Descending)
+    Private Sub SortDataGridView(dg As DataGridView)
+        dg.Sort(dg.Columns(0), System.ComponentModel.ListSortDirection.Descending)
+    End Sub
+
+    Private Sub BringLegendToFront()
+        gpLegend.BringToFront()
     End Sub
 
     Private Sub loadCharacterInventory(character As Character, offline As Boolean)
@@ -634,10 +680,10 @@ Public Class frmMain
         End If
     End Sub
 
-    Private Sub AddToFullInventory(query As IEnumerable(Of Item), blStash As Boolean)
+    Private Sub AddToFullInventory(query As IEnumerable(Of Item), blStash As Boolean, ByRef lngCount As Long)
         Try
             ' Convert the temporary inventory list into our FullInventory list of FullItem class types
-            Dim myGear As Gear, lngCount As Long = 0
+            Dim myGear As Gear
             For Each myGear In query
                 If myGear.Rarity <> Rarity.Rare Then Continue For ' We're only interested in rares
                 Dim newFullItem As New FullItem
@@ -651,110 +697,141 @@ Public Class frmMain
                 End If
                 newFullItem.League = myGear.League
                 newFullItem.ItemType = myGear.BaseType
-                newFullItem.GearType = myGear.GearType.ToString
-                If newFullItem.ItemType Is Nothing Or newFullItem.GearType = "Unknown" Then
-                    MessageBox.Show("An item (Name: " & myGear.Name & ", Location: " & newFullItem.Location & ") does not have an entry for its type and/or subtype in the APIs. Please report this to:" & Environment.NewLine & Environment.NewLine & _
-                                    "https://github.com/RoryTate/modrank/issues" & Environment.NewLine & Environment.NewLine & _
-                                    "Also, please provide the actual base type (i.e. Quiver) and subtype (i.e. Light Quiver) that are missing.", "Item Type/Subtype Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                    Continue For
-                End If
-                newFullItem.TypeLine = myGear.TypeLine.ToString
-                newFullItem.H = CByte(myGear.H)
-                newFullItem.W = CByte(myGear.W)
-                newFullItem.Name = myGear.Name
-                newFullItem.Rarity = myGear.Rarity
-                For i = 0 To myGear.Requirements.Count - 1
-                    If myGear.Requirements(i).Name.ToLower = "level" Then
-                        newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
-                        newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
-                        Exit For ' We don't care about any other requirements, so exit the loop
-                    End If
-                Next
-                newFullItem.Sockets = CByte(myGear.NumberOfSockets)
-                For i = 6 To 0 Step -1
-                    If myGear.IsLinked(i) Then
-                        newFullItem.Links = CByte(IIf(i = 1, 0, i)) : Exit For
-                    End If
-                Next
-                If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
-                newFullItem.Corrupted = myGear.Corrupted
-                If Not IsNothing(myGear.Implicitmods) Then
-                    For i = 0 To myGear.Implicitmods.Count - 1
-                        Dim newFullMod As New FullMod
-                        newFullMod.FullText = myGear.Implicitmods(i)
-                        If myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                            newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i), 0, myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
-                            newFullMod.MaxValue1 = GetNumeric(myGear.Implicitmods(i), myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Implicitmods(i).Length)
+                If myGear.GearType.ToString.CompareMultiple(StringComparison.Ordinal, "Sword", "Mace", "Axe") = True Then
+                    If myGear.GearType.ToString = "Sword" Or myGear.GearType.ToString = "Axe" Then
+                        If myGear.H = 4 And myGear.W = 2 Then
+                            newFullItem.GearType = myGear.GearType.ToString & " (2h)"
                         Else
-                            newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i))
-                        End If
-                        newFullMod.Type1 = GetChars(myGear.Implicitmods(i))
-                        newFullItem.ImplicitMods.Add(newFullMod)
-                    Next
-                End If
-                ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
-                ReorderExplicitMods(myGear)
-                blAddedOne = False
-                If Not IsNothing(myGear.Explicitmods) Then
-                    blSolomonsJudgment.Clear()
-                    EvaluateExplicitMods(myGear, newFullItem)
-                    If newFullItem.ExplicitPrefixMods.Count = 0 And newFullItem.ExplicitSuffixMods.Count = 0 Then
-                        If TempInventory.Count = 0 Then
-                            EvaluateExplicitMods(myGear, newFullItem, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
-                        Else
-                            If TempInventory(TempInventory.Count - 1).Name <> myGear.Name Then
-                                EvaluateExplicitMods(myGear, newFullItem, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                            If myGear.TypeLine.ToString.CompareMultiple(StringComparison.OrdinalIgnoreCase, "corroded blade", "longsword", "butcher sword", "headman's sword") Then
+                                newFullItem.GearType = myGear.GearType.ToString & " (2h)"
+                            Else
+                                newFullItem.GearType = myGear.GearType.ToString & " (1h)"
                             End If
                         End If
+                    ElseIf myGear.GearType.ToString = "Mace" Then
+                        If myGear.H = 4 And myGear.W = 2 Then newFullItem.GearType = myGear.GearType.ToString & " (2h)" Else newFullItem.GearType = myGear.GearType.ToString & " (1h)"
                     End If
-                    If blAddedOne = True Then
-                        ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
-                        RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
-                        RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
-                        FullInventory.Add(TempInventory(TempInventory.Count - 1).Clone)
-                        TempInventory.RemoveAt(TempInventory.Count - 1)
-                        If lngCount < TempInventory.Count Then
-                            FullInventory(FullInventory.Count - 1).OtherSolutions = True
-                        End If
-                        lngCount = TempInventory.Count
-                    Else
-                        FullInventory.Add(newFullItem)
-                    End If
+                Else
+                    newFullItem.GearType = myGear.GearType.ToString
                 End If
-                statusCounter += 1 : If statusCounter Mod 100 = 0 Then statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
-                ' Enable the following to limit the item loading to 100 items when quick development cycles are required
-                'If statusCounter = 100 Then Exit Sub
+                    If newFullItem.ItemType Is Nothing Or newFullItem.GearType = "Unknown" Then
+                        MessageBox.Show("An item (Name: " & myGear.Name & ", Location: " & newFullItem.Location & ") does not have an entry for its type and/or subtype in the APIs. Please report this to:" & Environment.NewLine & Environment.NewLine & _
+                                        "https://github.com/RoryTate/modrank/issues" & Environment.NewLine & Environment.NewLine & _
+                                        "Also, please provide the actual base type (i.e. Quiver) and subtype (i.e. Light Quiver) that are missing.", "Item Type/Subtype Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        Continue For
+                    End If
+                    newFullItem.TypeLine = myGear.TypeLine.ToString
+                    newFullItem.H = CByte(myGear.H)
+                    newFullItem.W = CByte(myGear.W)
+                    newFullItem.X = myGear.X
+                    newFullItem.Y = myGear.Y
+                    newFullItem.Name = myGear.Name
+                    newFullItem.Rarity = myGear.Rarity
+                    For i = 0 To myGear.Requirements.Count - 1
+                        If myGear.Requirements(i).Name.ToLower = "level" Then
+                            newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
+                            newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
+                            Exit For ' We don't care about any other requirements, so exit the loop
+                        End If
+                    Next
+                    newFullItem.Sockets = CByte(myGear.NumberOfSockets)
+                    Dim sb As New System.Text.StringBuilder(11), intGroup As Integer = 0, blFirst As Boolean = True
+                    For i = 0 To newFullItem.Sockets - 1
+                        If intGroup = myGear.Sockets(i).Group And blFirst = False Then
+                            sb.Append("-")
+                        ElseIf blFirst = False Then
+                            sb.Append(" ")
+                        End If
+                        blFirst = False
+                        sb.Append(myGear.Sockets(i).Attribute)
+                        intGroup = myGear.Sockets(i).Group
+                    Next
+                    sb.Replace("I", "b") : sb.Replace("S", "r") : sb.Replace("D", "g")
+                    newFullItem.Colours = sb.ToString
+                    For i = 6 To 0 Step -1
+                        If myGear.IsLinked(i) Then
+                            newFullItem.Links = CByte(IIf(i = 1, 0, i)) : Exit For
+                        End If
+                    Next
+                    If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
+                    newFullItem.Corrupted = myGear.Corrupted
+                    If Not IsNothing(myGear.Implicitmods) Then
+                        For i = 0 To myGear.Implicitmods.Count - 1
+                            Dim newFullMod As New FullMod
+                            newFullMod.FullText = myGear.Implicitmods(i)
+                            If myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                                newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i), 0, myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                                newFullMod.MaxValue1 = GetNumeric(myGear.Implicitmods(i), myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Implicitmods(i).Length)
+                            Else
+                                newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i))
+                            End If
+                            newFullMod.Type1 = GetChars(myGear.Implicitmods(i))
+                            newFullItem.ImplicitMods.Add(newFullMod)
+                        Next
+                    End If
+                    ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
+                    ReorderExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count)
+                    blAddedOne = False
+                    If Not IsNothing(myGear.Explicitmods) Then
+                        blSolomonsJudgment.Clear()
+                        EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory)
+                        If newFullItem.ExplicitPrefixMods.Count = 0 And newFullItem.ExplicitSuffixMods.Count = 0 Then
+                            If TempInventory.Count = 0 Then
+                                EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                            Else
+                                If TempInventory(TempInventory.Count - 1).Name <> myGear.Name Then
+                                    EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                                End If
+                            End If
+                        End If
+                        If blAddedOne = True Then
+                            ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
+                            RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
+                            RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
+                            FullInventory.Add(TempInventory(TempInventory.Count - 1).Clone)
+                            TempInventory.RemoveAt(TempInventory.Count - 1)
+                            If lngCount < TempInventory.Count Then
+                                FullInventory(FullInventory.Count - 1).OtherSolutions = True
+                            End If
+                            lngCount = TempInventory.Count
+                        Else
+                            FullInventory.Add(newFullItem)
+                        End If
+                    End If
+                    statusCounter += 1 : If statusCounter Mod 100 = 0 Then statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
+                    ' Enable the following to limit the item loading to 100 items when quick development cycles are required
+                    'If statusCounter = 100 Then Exit Sub
             Next
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
 
-    Public Sub ReorderExplicitMods(ByRef myGear As Gear)
+    Public Sub ReorderExplicitMods(lstMods As List(Of String), intModCount As Integer)
         Try
-            Dim intCounter As Integer = myGear.Explicitmods.Count - 1, strType As String = ""
-            If Not IsNothing(myGear.Explicitmods) Then
-                For i = 0 To myGear.Explicitmods.Count - 1      ' Run the loop to put increased rarity at the end first, since it can be a prefix or suffix, and is the most important (Note: must go to the end of the loop, to decrement bytCounter)
-                    strType = GetChars(myGear.Explicitmods(i))
+            Dim intCounter As Integer = intModCount - 1, strType As String = ""
+            If Not IsNothing(lstMods) Then
+                For i = 0 To intModCount - 1      ' Run the loop to put increased rarity at the end first, since it can be a prefix or suffix, and is the most important (Note: must go to the end of the loop, to decrement bytCounter)
+                    strType = GetChars(lstMods(i))
                     If strType.CompareMultiple(StringComparison.OrdinalIgnoreCase, "% increased Rarity of Items found") = True Then
-                        Dim strTemp As String = myGear.Explicitmods(intCounter)
-                        myGear.Explicitmods(intCounter) = myGear.Explicitmods(i)
-                        myGear.Explicitmods(i) = strTemp
+                        Dim strTemp As String = lstMods(intCounter)
+                        lstMods(intCounter) = lstMods(i)
+                        lstMods(i) = strTemp
                         intCounter -= 1
                         Exit For
                     End If
                 Next
-                For i = 0 To myGear.Explicitmods.Count - 1      ' Put combined mods -- and mods that get dragged into the combinations -- at the end, so that our looping search goes quicker
+                For i = 0 To intModCount - 1      ' Put combined mods -- and mods that get dragged into the combinations -- at the end, so that our looping search goes quicker
                     If i >= intCounter Then Exit For
                     ' Use a do loop to reorder, since the mod swap might initially exchange a mod at the last spot that is also in this list
-                    Do While GetChars(myGear.Explicitmods(i)).CompareMultiple(StringComparison.OrdinalIgnoreCase, "+ to Accuracy Rating", "% increased Block and Stun Recovery", _
+                    Do While GetChars(lstMods(i)).CompareMultiple(StringComparison.OrdinalIgnoreCase, "+ to Accuracy Rating", "% increased Block and Stun Recovery", _
                                                "% increased Accuracy Rating", "+ to maximum Mana", "% increased Light Radius", "% increased Armour", _
                                                "% increased Armour and Energy Shield", "% increased Armour and Evasion", "% increased Energy Shield", _
                                                "% increased Evasion and Energy Shield", "% increased Evasion Rating", "% increased Physical Damage", _
                                                "% increased Spell Damage") = True
-                        Dim strTemp As String = myGear.Explicitmods(intCounter)
-                        myGear.Explicitmods(intCounter) = myGear.Explicitmods(i)
-                        myGear.Explicitmods(i) = strTemp
+                        Dim strTemp As String = lstMods(intCounter)
+                        lstMods(intCounter) = lstMods(i)
+                        lstMods(i) = strTemp
                         If i >= intCounter Then Exit For
                         intCounter -= 1
                     Loop
@@ -765,49 +842,52 @@ Public Class frmMain
         End Try
     End Sub
 
-    Public Function CheckForCombinedMod(result() As DataRow, j As Integer, newFullMod As FullMod, myGear As Gear, i As Integer) As Byte
-        ' This function looks to see if the mod entry selected from weights-*.csv is a combined mod, and if successful will return the 
-        ' index/position of the other mod from the explicitmods list
-        Dim strMod As String = ""
-        If newFullMod.Type1 Is result(j)("ExportField") Then
-            strMod = result(j)("ExportField2").ToString
-        Else
-            strMod = result(j)("ExportField").ToString
-        End If
-        For k = i To myGear.Explicitmods.Count - 1  ' Look ahead at upcoming mods to find the position for its "companion" mod
-            If GetChars(myGear.Explicitmods(k)) = strMod Then Return CByte(k)
-        Next
-        Return 0
-    End Function
+    'Public Function CheckForCombinedMod(result() As DataRow, j As Integer, newFullMod As FullMod, myGear As Gear, i As Integer) As Byte
+    '    ' This function looks to see if the mod entry selected from weights-*.csv is a combined mod, and if successful will return the 
+    '    ' index/position of the other mod from the explicitmods list
+    '    Dim strMod As String = ""
+    '    If newFullMod.Type1 Is result(j)("ExportField") Then
+    '        strMod = result(j)("ExportField2").ToString
+    '    Else
+    '        strMod = result(j)("ExportField").ToString
+    '    End If
+    '    For k = i To myGear.Explicitmods.Count - 1  ' Look ahead at upcoming mods to find the position for its "companion" mod
+    '        If GetChars(myGear.Explicitmods(k)) = strMod Then Return CByte(k)
+    '    Next
+    '    Return 0
+    'End Function
 
-    Public Sub EvaluateExplicitMods(mygear As Gear, ByRef newfullitem As FullItem, Optional blForceFullSearch As Boolean = False, Optional blAllowLegacy As Boolean = False)
+    Public Sub EvaluateExplicitMods(lstMods As List(Of String), intModCount As Integer, strID As String, strName As String, ByRef newfullitem As FullItem, ByRef lstTempInventory As List(Of FullItem), Optional blForceFullSearch As Boolean = False, Optional blAllowLegacy As Boolean = False)
         Try
             Dim result() As DataRow = Nothing
             Dim ModList As New List(Of DataRow), ModPos As New Dictionary(Of String, Integer)
             Dim strField As String = "", strField2 As String = "", strAffix As String = ""
             Dim blCombinedModsAdded As Boolean = False
-            For i = 0 To mygear.Explicitmods.Count - 1
-                strField = GetChars(mygear.Explicitmods(i))
+            For i = 0 To intModCount - 1
+                strField = GetChars(lstMods(i))
                 ModPos.Add(strField.ToLower, i)
                 result = dtWeights.Select("ExportField = '" & strField & "' OR ExportField2 = '" & strField & "'")
                 For j = 0 To result.Count - 1
                     If result(j)("ExportField2").ToString <> "" Then ' Do we need to check the second mod for a combined mod?
                         strField2 = IIf(strField = result(j)("ExportField2").ToString, result(j)("ExportField"), result(j)("ExportField2")).ToString
-                        If mygear.Explicitmods.Find(Function(x) GetChars(x) = strField2) = "" Then Continue For ' The second mod isn't part of this item...move on
+                        If lstMods.Find(Function(x) GetChars(x) = strField2) = "" Then Continue For ' The second mod isn't part of this item...move on
                         blCombinedModsAdded = True  ' If we added a combined mod, will want to run the 'exhaustive' search for more below, otherwise skip the second search
                     End If
-                    If strField = "% increased Rarity of Items found" And GetNumeric(mygear.Explicitmods(i)) > 9 Then   ' Rarity has both prefix and suffix values, so add both to the mod list
+                    Dim blResult As Boolean
+                    If strField = "% increased Rarity of Items found" And GetNumeric(lstMods(i)) > 9 Then   ' Rarity has both prefix and suffix values, so add both to the mod list
                         blCombinedModsAdded = True      ' Update: Rather than trying to solve the whole thing here, just set our search to try both and let the recursion routine do the rest
                         Dim tmpResult As DataRow = DeepCopyDataRow(result(j))   ' Cannot do a shallow reference copy, or else we are unable to create separate ModList entries
-                        AddToModList(ModList, newfullitem, tmpResult, result(j)("Description").ToString & ",Prefix")     ' We must distinguish our key names to provide the search routine a way to treat this as a "combined" mod
+                        blResult = AddToModList(ModList, newfullitem, tmpResult, result(j)("Description").ToString & ",Prefix")     ' We must distinguish our key names to provide the search routine a way to treat this as a "combined" mod
                         Dim tmpResult2 As DataRow = DeepCopyDataRow(result(j))  ' Do it again, as we don't want to affect dtWeights either
-                        AddToModList(ModList, newfullitem, tmpResult2, result(j)("Description").ToString & ",Suffix")
+                        blResult = AddToModList(ModList, newfullitem, tmpResult2, result(j)("Description").ToString & ",Suffix")
                     Else
-                        AddToModList(ModList, newfullitem, result(j))
+                        blResult = AddToModList(ModList, newfullitem, result(j))
                     End If
+                    If blResult = False Then Exit Sub
                 Next
                 If result.Count = 0 Then    ' No match, that is strange...
                     MsgBox("Warning: could not find '" & strField & "' mod in weights list. Please check that your weights-*.csv file is properly configured.")
+                    Exit Sub
                 End If
             Next
             ' Our ModList now contains all of the possible "combined" mods that could have been assigned to this item (we have exhausted all of the branches)
@@ -817,7 +897,7 @@ Public Class frmMain
             For Each row In ModList
                 Dim strOverrideDescription As String = ""
                 If row("Description").ToString.Contains("Base Item Found Rarity +%") Then
-                    'Select Case GetNumeric(mygear.Explicitmods(ModPos(row("ExportField").ToString.ToLower)))
+                    'Select Case GetNumeric(lstMods(ModPos(row("ExportField").ToString.ToLower)))
                     '    Case 6 To 9    ' The rarity mod is a prefix
                     '        strAffix = "Prefix"
                     '        'Case 10 To 13      ' It's either a prefix or a suffix
@@ -853,16 +933,16 @@ Public Class frmMain
             ' Use simple method if all the mods are independent and a 1-1 mapping exists, so we can set them in a quick, efficient and straightforward manner
             ' Also check the global boolean blForceFullSearch to see if we've called ourselves again because this method won't work
             If (blCombinedModsAdded = False And MaxIndex.Count = ModList.Count) And blForceFullSearch = False Then
-                For i = 0 To mygear.Explicitmods.Count - 1
+                For i = 0 To intModCount - 1
                     lngModCounter += 1
                     Dim newMod As New FullMod
-                    newMod.FullText = mygear.Explicitmods(i)
-                    newMod.Type1 = GetChars(mygear.Explicitmods(i))
-                    If mygear.Explicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                        newMod.Value1 = GetNumeric(mygear.Explicitmods(i), 0, mygear.Explicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
-                        newMod.MaxValue1 = GetNumeric(mygear.Explicitmods(i), mygear.Explicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), mygear.Explicitmods(i).Length)
+                    newMod.FullText = lstMods(i)
+                    newMod.Type1 = GetChars(lstMods(i))
+                    If lstMods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                        newMod.Value1 = GetNumeric(lstMods(i), 0, lstMods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                        newMod.MaxValue1 = GetNumeric(lstMods(i), lstMods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), lstMods(i).Length)
                     Else
-                        newMod.Value1 = GetNumeric(mygear.Explicitmods(i))
+                        newMod.Value1 = GetNumeric(lstMods(i))
                     End If
                     newMod.Weight = CInt(ModList(i)("Weight").ToString)
                     'Dim temprow As New Dictionary(Of String, DataRow)
@@ -875,7 +955,7 @@ Public Class frmMain
                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
                         strAffix = RunModResultQuery(newfullitem, , ModList(i)("Description").ToString)(0)("Prefix/Suffix").ToString
                         Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
-                        RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), mygear.UniqueIDHash.ToString, mygear.Name, strAffix)
+                        RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), strID, strName, strAffix)
                         GoTo AddMod
                     End If
                     Dim strKey As String = temprow(temprow.Count - 1).Key.ToLower     ' Choose the last row to get the highest possible level, just like the combined algorithm does
@@ -889,10 +969,10 @@ Public Class frmMain
                     End If
                     newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                     strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                    sngRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, mygear.UniqueIDHash.ToString, mygear.Name, strAffix)
+                    sngRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, strID, strName, strAffix)
                     Dim sb As New System.Text.StringBuilder
-                    sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ") " & IIf(i = mygear.Explicitmods.Count - 1, "Final Rank", " (running total)" & vbCrLf).ToString)
-                    AddExplanation(mygear.UniqueIDHash & mygear.Name, sb)
+                    sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ") " & IIf(i = intModCount - 1, "Final Rank", " (running total)" & vbCrLf).ToString)
+                    AddExplanation(strID & strName, sb)
 
 AddMod:
                     If newMod.Type1 = "% increased Rarity of Items found" Then  ' If it's rarity then it can be a prefix or a suffix, so see if one of the lists is full
@@ -909,8 +989,8 @@ AddMod:
                     ' We've likely tried to fit a combined mod requiring item into our simple algorithm...drop everything and try the "full" method
                     newfullitem.ExplicitPrefixMods.RemoveRange(0, newfullitem.ExplicitPrefixMods.Count) ' Remove any mod list changes we might have made
                     newfullitem.ExplicitSuffixMods.RemoveRange(0, newfullitem.ExplicitSuffixMods.Count)
-                    RankExplanation.Remove(mygear.UniqueIDHash & mygear.Name)
-                    EvaluateExplicitMods(mygear, newfullitem, True)   ' Call ourselves again, this time with the forcefullsearch boolean set to true
+                    RankExplanation.Remove(strID & strName)
+                    EvaluateExplicitMods(lstMods, intModCount, strID, strName, newfullitem, lstTempInventory, True)   ' Call ourselves again, this time with the forcefullsearch boolean set to true
                     Exit Sub
                 End If
                 newfullitem.Rank = sngRank
@@ -924,13 +1004,13 @@ AddMod:
                 maxpos(intPos) = mykey.Value
                 intPos += 1
             Next
-            DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, 0, mygear, MaxIndex, ModPos, newfullitem, blAllowLegacy)
+            DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, 0, lstMods, intModCount, strID, strName, MaxIndex, ModPos, newfullitem, blAllowLegacy, lstTempInventory)
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Item Name: " & mygear.Name)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Item Name: " & strName)
         End Try
     End Sub
 
-    Public Sub AddToModList(ModList As List(Of DataRow), newfullitem As FullItem, MyRow As DataRow, Optional strForceDescription As String = "")
+    Public Function AddToModList(ModList As List(Of DataRow), newfullitem As FullItem, MyRow As DataRow, Optional strForceDescription As String = "") As Boolean
         Try
             If Not ModList.Contains(MyRow) Then ' Before adding it, see if it already is in the list
                 Dim tmpResult() As DataRow = RunModResultQuery(newfullitem, MyRow)
@@ -939,11 +1019,13 @@ AddMod:
                     If strForceDescription <> "" Then ModList(ModList.Count - 1)("Description") = strForceDescription
                 End If
             End If
+            Return True
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "New Mod Description: " & MyRow("Description").ToString & vbCrLf & _
                          "Current ModList Contents: " & String.Join(vbCrLf, ModList.[Select](Function(r) r("Description").ToString()).ToArray()))
+            Return False
         End Try
-    End Sub
+    End Function
 
     Public Function CalculateRank(newMod As FullMod, intMaxIndex As Integer, strKey As String, strID As String, strName As String, strAffix As String, Optional strOverrideKey As String = "") As Single
         Try
@@ -1131,11 +1213,11 @@ AddExplanationGoto:
         End Try
     End Function
 
-    Public Sub DynamicMultiDimLoop(ByRef curpos() As Integer, ByRef maxpos() As Integer, ByRef ModList As List(Of DataRow), ModStatsList As Dictionary(Of String, DataRow), curdim As Integer, myGear As Gear, MaxIndex As Dictionary(Of String, Integer), modPos As Dictionary(Of String, Integer), ByRef newFullItem As FullItem, blAllowLegacy As Boolean)
+    Public Sub DynamicMultiDimLoop(ByRef curpos() As Integer, ByRef maxpos() As Integer, ByRef ModList As List(Of DataRow), ModStatsList As Dictionary(Of String, DataRow), curdim As Integer, lstMods As List(Of String), intModCount As Integer, strID As String, strName As String, MaxIndex As Dictionary(Of String, Integer), modPos As Dictionary(Of String, Integer), ByRef newFullItem As FullItem, blAllowLegacy As Boolean, lstTempInventory As List(Of FullItem))
         Try
             For i = maxpos(curdim) To -1 Step -1    ' We go to -1, since -1 is the index where we don't use the potential mod
                 curpos(curdim) = i
-                Dim strStatsKey As String = ""
+                Dim strStatsKey As String = "", strMod As String = "", strMod2 As String = ""
                 If i >= 0 Then
                     strStatsKey = ModList(curdim)("ExportField").ToString.ToLower & ModList(curdim)("ExportField2").ToString.ToLower & i
                     If ModStatsList.ContainsKey(strStatsKey) = False Then   ' It must be a rarity mod that could be a shared total of both a prefix and a suffix
@@ -1147,31 +1229,34 @@ AddExplanationGoto:
                 ' The i>0 condition means that we will try at least once, so that we will set an "UnknownValue=True" if we're having trouble with a legacy mod/value
                 If ModList(curdim)("ExportField2").ToString = "" And i > 0 Then
                     Dim intPos As Integer = modPos(ModList(curdim)("ExportField").ToString.ToLower)
-                    If myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then   ' We have to check a ranged value for both minimums
-                        If GetNumeric(myGear.Explicitmods(intPos), 0, myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
-                        If GetNumeric(myGear.Explicitmods(intPos), myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos).Length) < CSng(ModStatsList(strStatsKey)("MaxV2")) Then Continue For
-                        If GetNumeric(myGear.Explicitmods(intPos), 0, myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase)) > CSng(ModStatsList(strStatsKey)("MinV2")) And blAddedOne = True Then Exit For
-                        If GetNumeric(myGear.Explicitmods(intPos), myGear.Explicitmods(intPos).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos).Length) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
+                    strMod = lstMods(intPos)
+                    If strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then   ' We have to check a ranged value for both minimums
+                        If GetNumeric(strMod, 0, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                        If GetNumeric(strMod, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase), strMod.Length) < CSng(ModStatsList(strStatsKey)("MaxV2")) Then Continue For
+                        If GetNumeric(strMod, 0, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase)) > CSng(ModStatsList(strStatsKey)("MinV2")) And blAddedOne = True Then Exit For
+                        If GetNumeric(strMod, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase), strMod.Length) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
                     Else
-                        If GetNumeric(myGear.Explicitmods(intPos)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
-                        If HaveToShare(GetChars(myGear.Explicitmods(intPos)).ToLower, ModList, curpos) = False Then
-                            If GetNumeric(myGear.Explicitmods(intPos)) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
+                        If GetNumeric(strMod) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                        If HaveToShare(GetChars(strMod).ToLower, ModList, curpos) = False Then
+                            If GetNumeric(strMod) > CSng(ModStatsList(strStatsKey)("MaxV")) And blAddedOne = True Then Exit For
                         End If
                     End If
                 ElseIf i > 0 Then
                     Dim intPos As Integer = modPos(ModList(curdim)("ExportField").ToString.ToLower)
+                    strMod = lstMods(intPos)
                     Dim intPos2 As Integer = modPos(ModList(curdim)("ExportField2").ToString.ToLower)
-                    If GetNumeric(myGear.Explicitmods(intPos)) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
-                    If GetNumeric(myGear.Explicitmods(intPos2)) < CSng(ModStatsList(strStatsKey)("MinV2")) Then Continue For
+                    strMod2 = lstMods(intPos2)
+                    If GetNumeric(strMod) < CSng(ModStatsList(strStatsKey)("MinV")) Then Continue For
+                    If GetNumeric(strMod2) < CSng(ModStatsList(strStatsKey)("MinV2")) Then Continue For
                 End If
 
                 If curdim < UBound(maxpos) Then
                     ' Recursively call this sub again to repeat the loop for the next dimension of the list/array
-                    DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, curdim + 1, myGear, MaxIndex, modPos, newFullItem, blAllowLegacy)
+                    DynamicMultiDimLoop(curpos, maxpos, ModList, ModStatsList, curdim + 1, lstMods, intModCount, strID, strName, MaxIndex, modPos, newFullItem, blAllowLegacy, lstTempInventory)
                 Else
                     ' We have a possible match!
                     Dim intPos(MaxIndex.Count - 1, 1) As Integer, blmatch As Boolean = True
-                    Dim ModMinTotals(myGear.Explicitmods.Count - 1) As Single, ModMaxTotals(myGear.Explicitmods.Count - 1) As Single
+                    Dim ModMinTotals(intModCount - 1) As Single, ModMaxTotals(intModCount - 1) As Single
                     For j = 0 To MaxIndex.Count - 1
                         If curpos(j) = -1 Then Continue For ' If position is -1, we are trying to get the proper totals without this mod
                         Dim strTempStatKey As String = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower & curpos(j)
@@ -1189,13 +1274,14 @@ AddExplanationGoto:
                     Next
                     For j = 0 To ModMinTotals.Count - 1
                         'If curpos(j) = -1 Then Continue For ' If position is -1, we're getting the totals without this mod
-                        If myGear.Explicitmods(j).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                            If ModMinTotals(j) > GetNumeric(myGear.Explicitmods(j), 0, myGear.Explicitmods(j).IndexOf("-", StringComparison.OrdinalIgnoreCase)) Then blmatch = False : Exit For
-                            If ModMaxTotals(j) < GetNumeric(myGear.Explicitmods(j), myGear.Explicitmods(j).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(j).Length) Then blmatch = False : Exit For
+                        strMod = lstMods(j)
+                        If strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                            If ModMinTotals(j) > GetNumeric(strMod, 0, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase)) Then blmatch = False : Exit For
+                            If ModMaxTotals(j) < GetNumeric(strMod, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase), strMod.Length) Then blmatch = False : Exit For
                         Else
-                            If ModMinTotals(j) > GetNumeric(myGear.Explicitmods(j)) Then blmatch = False : Exit For
-                            If ModMaxTotals(j) < GetNumeric(myGear.Explicitmods(j)) Then
-                                If HaveToShare(GetChars(myGear.Explicitmods(j)).ToLower, ModList, curpos) = False Then
+                            If ModMinTotals(j) > GetNumeric(strMod) Then blmatch = False : Exit For
+                            If ModMaxTotals(j) < GetNumeric(strMod) Then
+                                If HaveToShare(GetChars(strMod).ToLower, ModList, curpos) = False Then
                                     If blAddedOne = True Or blAllowLegacy = False Then blmatch = False : Exit For
                                     ' Initially, when blAllowLegacy is false, we want to try everything until we know we have a match, at which point we can be more picky
                                     ' If blAddedOne is false and we're running again with AllowLegacy to true, we have failed to find a maximum large enough for a non-combined mod
@@ -1208,12 +1294,13 @@ AddExplanationGoto:
                     Next
                     If blmatch = True Then
                         Dim sngRank As Single = 0
-                        Dim strRankExplanationKey As String = myGear.UniqueIDHash & myGear.Name & TempInventory.Count
+                        Dim strRankExplanationKey As String = strID & strName & lstTempInventory.Count
                         For j = 0 To ModList.Count - 1
                             If curpos(j) = -1 Then Continue For ' If position is -1, this mod position in ModList will not be used
                             Dim newMod As New FullMod, strAffix As String = ""
-                            newMod.FullText = myGear.Explicitmods(intPos(j, 0))
-                            newMod.Type1 = GetChars(myGear.Explicitmods(intPos(j, 0)))
+                            strMod = lstMods(intPos(j, 0))
+                            newMod.FullText = strMod
+                            newMod.Type1 = GetChars(strMod)
                             newMod.Weight = CInt(ModList(j)("Weight").ToString)
                             Dim strKey As String = "", strMaxIndexKey As String = ""
                             If ModList(j)("Description").ToString.Contains(",") Then
@@ -1224,31 +1311,32 @@ AddExplanationGoto:
                                 strMaxIndexKey = ModList(j)("ExportField").ToString.ToLower & ModList(j)("ExportField2").ToString.ToLower
                             End If
 
-                            If myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                                newMod.Value1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)), 0, myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase))
-                                newMod.MaxValue1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)), myGear.Explicitmods(intPos(j, 0)).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Explicitmods(intPos(j, 0)).Length)
+                            If strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                                newMod.Value1 = GetNumeric(strMod, 0, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                                newMod.MaxValue1 = GetNumeric(strMod, strMod.IndexOf("-", StringComparison.OrdinalIgnoreCase), strMod.Length)
                             Else
                                 If HaveToShare(ModList(j)("ExportField").ToString.ToLower, ModList, curpos) = True Then
                                     ' We only have a portion of this value...have to apply a weighting formula to determine how much is ours and how much the other mod(s) will chip in
-                                    newMod.Value1 = DistributeValues(strKey, ModList(j)("ExportField").ToString, GetNumeric(myGear.Explicitmods(intPos(j, 0))), ModList, ModStatsList, curpos)
+                                    newMod.Value1 = DistributeValues(strKey, ModList(j)("ExportField").ToString, GetNumeric(strMod), ModList, ModStatsList, curpos)
                                     ' Have to change the fulltext to reflect the new value
                                     newMod.FullText = BuildFullText(newMod.Type1, newMod.Value1)
                                 Else
-                                    newMod.Value1 = GetNumeric(myGear.Explicitmods(intPos(j, 0)))
-                                    If GetNumeric(myGear.Explicitmods(intPos(j, 0))) > CSng(ModStatsList(strKey)("MaxV").ToString) And blAllowLegacy = True Then
+                                    newMod.Value1 = GetNumeric(strMod)
+                                    If GetNumeric(strMod) > CSng(ModStatsList(strKey)("MaxV").ToString) And blAllowLegacy = True Then
                                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
                                         strAffix = RunModResultQuery(newFullItem, , ModList(j)("Description").ToString)(0)("Prefix/Suffix").ToString
-                                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
-                                        sngRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), myGear.UniqueIDHash.ToString, myGear.Name, strAffix, strRankExplanationKey)
+                                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower & ModList(j)("ExportField2").ToString.ToLower))("MaxV"))
+                                        sngRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), strID, strName, strAffix, strRankExplanationKey)
                                         ' Don't jump ahead just yet, we might have an ExportField2 to set
                                     End If
                                 End If
                             End If
                             If ModList(j)("ExportField2").ToString <> "" Then
-                                newMod.Type2 = GetChars(myGear.Explicitmods(intPos(j, 1)))
+                                strMod2 = lstMods(intPos(j, 1))
+                                newMod.Type2 = GetChars(strMod2)
                                 If HaveToShare(ModList(j)("ExportField2").ToString.ToLower, ModList, curpos) = True Then
                                     ' We only have a portion of this value...have to apply a weighting formula to determine how much is ours and how much the other mod(s) will chip in
-                                    newMod.Value2 = DistributeValues(strKey, ModList(j)("ExportField2").ToString, GetNumeric(myGear.Explicitmods(intPos(j, 1))), ModList, ModStatsList, curpos)
+                                    newMod.Value2 = DistributeValues(strKey, ModList(j)("ExportField2").ToString, GetNumeric(strMod2), ModList, ModStatsList, curpos)
                                     If newMod.FullText.IndexOf("/") = -1 Then
                                         newMod.FullText += "/" & BuildFullText(newMod.Type2, newMod.Value2)
                                     Else
@@ -1256,7 +1344,7 @@ AddExplanationGoto:
                                         newMod.FullText = newMod.FullText.Substring(0, newMod.FullText.IndexOf("/")) & BuildFullText(newMod.Type2, newMod.Value2)
                                     End If
                                 Else
-                                    newMod.Value2 = GetNumeric(myGear.Explicitmods(intPos(j, 1)))
+                                    newMod.Value2 = GetNumeric(strMod2)
                                     ' This second mod may not be part of the original mod text
                                     If newMod.FullText.IndexOf("/") = -1 Then newMod.FullText += "/" & BuildFullText(newMod.Type2, newMod.Value2)
                                 End If
@@ -1277,7 +1365,7 @@ AddExplanationGoto:
                             End If
                             newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                             strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                            sngRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, myGear.UniqueIDHash.ToString, myGear.Name, strAffix, strRankExplanationKey)
+                            sngRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, strID, strName, strAffix, strRankExplanationKey)
                             Dim sb As New System.Text.StringBuilder
                             sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ")  (running total)" & vbCrLf)
                             RankExplanation(strRankExplanationKey) += vbCrLf & sb.ToString
@@ -1300,9 +1388,9 @@ AddMod2:
                         newFullItem.Rank = sngRank
                         newFullItem.Percentile = CSng(CalculatePercentile(newFullItem).ToString("0.0"))
                         RankExplanation(strRankExplanationKey) = RankExplanation(strRankExplanationKey).Substring(0, RankExplanation(strRankExplanationKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
-                        If TempInventory.IndexOf(newFullItem) = -1 Then
+                        If lstTempInventory.IndexOf(newFullItem) = -1 Then
                             Dim tmpItem As FullItem = CType(newFullItem.Clone, FullItem)
-                            TempInventory.Add(tmpItem)
+                            lstTempInventory.Add(tmpItem)
                         End If
                         newFullItem.ExplicitPrefixMods.RemoveRange(0, newFullItem.ExplicitPrefixMods.Count) ' Remove any mod list changes we might have made
                         newFullItem.ExplicitSuffixMods.RemoveRange(0, newFullItem.ExplicitSuffixMods.Count)
@@ -1312,7 +1400,7 @@ AddMod2:
                 'If blAddedOne = True Then Exit Sub
             Next
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Item Name: " & strName)
         End Try
     End Sub
 
@@ -1408,6 +1496,20 @@ AddMod2:
                 row("Level") = it.Level
                 row("Gem") = it.LevelGem
                 row("Sokt") = it.Sockets
+                row("SktClrs") = it.Colours
+                If it.Colours.Count <> 0 Then
+                    Dim tempList As List(Of String) = it.Colours.Split(" ").ToList
+                    Dim newList As New List(Of String)
+                    For Each s As String In tempList
+                        s = s.Replace("-", "")
+                        Dim c() As Char = s.ToCharArray
+                        Array.Sort(c)
+                        newList.Add(New String(c))
+                    Next
+                    row("SktClrsSearch") = String.Join(" ", newList.ToArray())
+                Else
+                    row("SktClrsSearch") = ""
+                End If
                 row("Link") = it.Links
                 If it.ExplicitPrefixMods Is Nothing = False Then
                     For i = 0 To it.ExplicitPrefixMods.Count - 1
@@ -1473,15 +1575,44 @@ AddMod2:
                 row("Qal") = it.Quality
                 row("*") = If(it.OtherSolutions, "*", "")
                 row("Crpt") = it.Corrupted
+                If IsNothing(it.Price) Then
+                    row("Price") = ""
+                    row("PriceNum") = 0
+                    row("PriceOrb") = ""
+                Else
+                    If IsNothing(it.Price.Exa) = False Then
+                        row("Price") = it.Price.Exa & " " & "Exa"
+                        row("PriceNum") = it.Price.Exa
+                        row("PriceOrb") = "Exa"
+                    ElseIf IsNothing(it.Price.Chaos) = False Then
+                        row("Price") = it.Price.Chaos & " " & "Chaos"
+                        row("PriceNum") = it.Price.Chaos
+                        row("PriceOrb") = "Chaos"
+                    ElseIf IsNothing(it.Price.Alch) = False Then
+                        row("Price") = it.Price.Alch & " " & "Alch"
+                        row("PriceNum") = it.Price.Alch
+                        row("PriceOrb") = "Alch"
+                    ElseIf IsNothing(it.Price.GCP) = False Then
+                        row("Price") = it.Price.GCP & " " & "GCP"
+                        row("PriceNum") = it.Price.GCP
+                        row("PriceOrb") = "GCP"
+                    Else
+                        row("Price") = ""
+                        row("PriceNum") = 0
+                        row("PriceOrb") = ""
+                    End If
+                End If
+                row("ThreadID") = If(IsNothing(it.ThreadID), "", it.ThreadID)
                 row("Index") = myList.IndexOf(it)
-                row("ID") = it.ID
+                row("ID") = it.ID.ToString
                 dt.Rows.Add(row)
                 intCounter += 1
                 If intCounter Mod 100 = 0 And blShowProgress Then statusController.DisplayMessage(strDisplayText & ": Completed adding " & intCounter & " of " & myList.Count & " rows.")
+                If intCounter Mod 10 = 0 And blShowProgress = False Then Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
             Next
             If blShowProgress Then statusController.DisplayMessage(strDisplayText & ": Completed adding all " & myList.Count & " rows.")
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Datatable: " & dt.TableName)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
 
@@ -1495,6 +1626,7 @@ AddMod2:
         ElseIf e.ColumnIndex = DataGridView1.Columns("*").Index AndAlso DataGridView1.CurrentRow.Cells("*").Value.ToString = "*" Then
             If Application.OpenForms().OfType(Of frmResults).Any = False Then frmResults.Show(Me)
             frmResults.Text = "Possible Mod Solutions for '" & DataGridView1.CurrentRow.Cells("Name").Value.ToString & "'"
+            frmResults.blStore = False
             Dim tmpList As New CloneableList(Of String)
             tmpList.Add(DataGridView1.CurrentRow.Cells("ID").Value.ToString)
             tmpList.Add(DataGridView1.CurrentRow.Cells("Name").Value.ToString)
@@ -1503,6 +1635,20 @@ AddMod2:
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
         ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf e.ColumnIndex = DataGridView1.Columns("Location").Index Then
+            frmLocation.X = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).X
+            frmLocation.Y = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).Y
+            frmLocation.H = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).H
+            frmLocation.W = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).W
+            frmLocation.TabName = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).Location
+            frmLocation.ItemName = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).Name
+            If frmLocation.TabName.EndsWith(" Tab") = False Then
+                MessageBox.Show("This item is in a character's inventory and the location cannot be shown.", "Item in Character Inventory", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Else
+                frmLocation.ShowDialog(Me)
+            End If
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link") Then
+            MessageBox.Show(DataGridView1.CurrentRow.Cells("SktClrs").Value, "Socket/Link Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
         End If
     End Sub
 
@@ -1548,7 +1694,9 @@ AddMod2:
     Private Sub DataGridView1_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseEnter
         If blScroll = True Then Exit Sub
         If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
-            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Hand
+            (DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or _
+             DataGridView1.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link", "Rank", "Location", "*")) _
+         Then DataGridView1.Cursor = Cursors.Hand
     End Sub
 
     Public Function IsValidCellAddress(dg As DataGridView, rowIndex As Integer, columnIndex As Integer) As Boolean
@@ -1558,7 +1706,9 @@ AddMod2:
     Private Sub DataGridView1_CellMouseLeave(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellMouseLeave
         If blScroll = True Then Exit Sub
         If IsValidCellAddress(DataGridView1, e.RowIndex, e.ColumnIndex) AndAlso _
-            (e.ColumnIndex = 0 Or DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or e.ColumnIndex = 13) Then DataGridView1.Cursor = Cursors.Default
+            (DataGridView1.Columns(e.ColumnIndex).Name.Contains("fix") Or _
+             DataGridView1.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link", "Rank", "Location", "*")) _
+         Then DataGridView1.Cursor = Cursors.Default
     End Sub
 
     Private Sub DataGridView1_CellMouseMove(sender As Object, e As DataGridViewCellMouseEventArgs) Handles DataGridView1.CellMouseMove
@@ -1673,8 +1823,8 @@ AddMod2:
             End If
             Dim intIndex As Integer = CInt(dg.Rows(e.RowIndex).Cells("Index").Value)
             If intIndex <> -1 Then
-                HighlightUnknownMods(MyInventory(intIndex).ExplicitPrefixMods, "Prefix ", e.RowIndex)
-                HighlightUnknownMods(MyInventory(intIndex).ExplicitSuffixMods, "Suffix ", e.RowIndex)
+                HighlightUnknownMods(dg, MyInventory(intIndex).ExplicitPrefixMods, "Prefix ", e.RowIndex)
+                HighlightUnknownMods(dg, MyInventory(intIndex).ExplicitSuffixMods, "Suffix ", e.RowIndex)
                 For i = 1 To 3
                     If i > MyInventory(intIndex).ExplicitPrefixMods.Count Then Exit For
                     If intWeightMax <= MyInventory(intIndex).ExplicitPrefixMods(i - 1).Weight Then
@@ -1698,14 +1848,14 @@ AddMod2:
             End If
             If dg.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then dg.Rows(e.RowIndex).Cells("*").Style.BackColor = ColorOtherSolutions
         Catch ex As Exception
-            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Item Name: " & dg.Rows(e.RowIndex).Cells("Name").Value)
         End Try
     End Sub
 
-    Private Sub HighlightUnknownMods(MyList As List(Of FullMod), strAffix As String, RowIndex As Integer)
+    Private Sub HighlightUnknownMods(dg As DataGridView, MyList As List(Of FullMod), strAffix As String, RowIndex As Integer)
         For Each MyMod In MyList
             If MyMod.UnknownValues = True Then
-                DataGridView1.Rows(RowIndex).Cells(strAffix & MyList.IndexOf(MyMod) + 1).Style.BackColor = ColorUnknownValue
+                dg.Rows(RowIndex).Cells(strAffix & MyList.IndexOf(MyMod) + 1).Style.BackColor = ColorUnknownValue
             End If
         Next
     End Sub
@@ -1722,7 +1872,7 @@ AddMod2:
             UserSettings("Weight") = Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {cmbWeight, "SelectedItem"}).ToString
             dtWeights = LoadCSVtoDataTable(Application.StartupPath & "\weights-" & UserSettings("Weight") & ".csv")
 
-            If DataGridView1.Visible = True Then
+            If DataGridView1.Visible = True Or DataGridView2.Visible = True Then
                 ' Recalculate all the rankings based on the new weights
                 RecalculateThread = New Threading.Thread(AddressOf RecalculateAllRankings)
                 RecalculateThread.SetApartmentState(Threading.ApartmentState.STA)
@@ -1744,13 +1894,21 @@ AddMod2:
         lblpb.Visible = False
     End Sub
 
-    Public Sub SetPBDefaults()
+    Public Sub SetPBDefaults(intMax As Integer, strLabel As String)
         grpProgress.Left = CInt((Me.Width - grpProgress.Width) / 2)
         grpProgress.Top = CInt((Me.Height - grpProgress.Height) / 2)
-        pb.Minimum = 1
-        pb.Maximum = CInt((FullInventory.Count + TempInventory.Count) / 10)
-        pb.Value = 1
-        pb.Step = 1
+        lblpb.Text = strLabel
+        If strLabel.ToLower.Contains("poexplorer") Then
+            pb.Maximum = 100
+            pb.MarqueeAnimationSpeed = 100
+            pb.Style = ProgressBarStyle.Marquee
+        Else
+            pb.Minimum = 0
+            pb.Maximum = CInt((intMax) / 10)
+            pb.Value = 0
+            pb.Step = 1
+            pb.Style = ProgressBarStyle.Blocks
+        End If
         grpProgress.Visible = True
         pb.Visible = True
         lblpb.Visible = True
@@ -1759,7 +1917,7 @@ AddMod2:
     Public Sub RecalculateAllRankings()
         Try
             ' Full speed ahead with the full recalculating!
-            Me.Invoke(New MyDelegate(AddressOf SetPBDefaults))
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {FullInventory.Count + TempInventory.Count + FullStoreInventory.Count + TempStoreInventory.Count, "Please wait, recalculating..."})
             EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
@@ -1767,12 +1925,14 @@ AddMod2:
             Dim blFilter As Boolean = strFilter <> ""
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", False})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", ""})
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", ""})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", True})
             Application.DoEvents()
             Dim lngCounter As Long = 0
-            For Each mylist In {FullInventory, TempInventory}
+            For Each mylist In {FullInventory, TempInventory, FullStoreInventory, TempStoreInventory}
                 Dim strList As String = ""
-                If mylist.Count = FullInventory.Count Then strList = "Full" Else strList = "Temp"
+                If mylist.Equals(FullInventory) Or mylist.Equals(FullStoreInventory) Then strList = "Full" Else strList = "Temp"
                 For Each it In mylist
                     it.Rank = 0
                     Dim strRankKey As String = IIf(strList = "Full", it.ID & it.Name, it.ID & it.Name & mylist.IndexOf(it)).ToString
@@ -1812,25 +1972,53 @@ AddMod2:
                 Next
             Next
             Application.DoEvents()
-            dtRank.Clear() : dtOverflow.Clear()
-            AddToDataTable(FullInventory, dtRank, True, "Full Inventory Table")
-            AddToDataTable(TempInventory, dtOverflow, True, "Overflow Inventory Table")
+            dtRank.Clear() : dtOverflow.Clear() : dtStore.Clear() : dtStoreOverflow.Clear()
 
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
-            Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("%").DefaultCellStyle, "Format", "n1"})
-            Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
-            Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
+            If FullInventory.Count <> 0 Then
+                AddToDataTable(FullInventory, dtRank, False, "")
+                AddToDataTable(TempInventory, dtOverflow, False, "")
 
-            If blFilter Then ApplyFilter()
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
+                Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("%").DefaultCellStyle, "Format", "n1"})
+                Me.Invoke(New MyDGDelegate(AddressOf SortDataGridView), DataGridView1)
+                Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView1})
+                If blFilter Then ApplyFilter(dtRank, dtOverflow, DataGridView1, lblRecordCount, strOrderBy, strFilter)
+                Dim FirstCell As DataGridViewCell
+                FirstCell = Me.Invoke(New DataGridCell(AddressOf ReturnFirstCell), New Object() {DataGridView1})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
+            End If
+            
+            If FullStoreInventory.Count <> 0 Then
+                AddToDataTable(FullStoreInventory, dtStore, False, "")
+                AddToDataTable(TempStoreInventory, dtStoreOverflow, False, "")
 
-            Dim FirstCell As DataGridViewCell
-            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", dtStore})
+                Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView2})
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("%").DefaultCellStyle, "Format", "n1"})
+                Me.Invoke(New MyDGDelegate(AddressOf SortDataGridView), DataGridView2)
+                Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView2})
+                ' To make room for new Price column take away from SubType and Implicit columns
+                Dim intWidth As Integer = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView2.Columns("SubType"), "Width"}), Integer) - 15, 0)
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("SubType"), "Width", intWidth})
+                intWidth = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView2.Columns("Implicit"), "Width"}), Integer) - 35, 0)
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("Implicit"), "Width", intWidth})
+                If blFilter Then ApplyFilter(dtStore, dtStoreOverflow, DataGridView2, lblRecordCount2, strStoreOrderBy, strStoreFilter)
+                Dim FirstCell As DataGridViewCell
+                FirstCell = Me.Invoke(New DataGridCell(AddressOf ReturnFirstCell), New Object() {DataGridView2})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "FirstDisplayedCell", FirstCell})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", True})
+            End If
+
             'frmPB.Close() : frmPB.Dispose()
             Me.Invoke(New MyDelegate(AddressOf PBClose))
-            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
+
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
@@ -1839,11 +2027,23 @@ AddMod2:
             ' Sometimes the wait cursor property doesn't get unset for the datagridview, perhaps because it is not visible for some time?
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "UseWaitCursor", False})
             Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Cursor", Cursors.Default})
-            Me.BeginInvoke(New MyDelegate(AddressOf SetDataGridFocus))
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "UseWaitCursor", False})
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Cursor", Cursors.Default})
+            Dim strTabName As String = CType(Me.Invoke(New MyDelegateFunction(AddressOf CurrentTabName)), String)
+            If strTabName = "tabpage2" Then
+                Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), DataGridView2)
+            Else
+                Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), DataGridView1)
+            End If
+            'Me.BeginInvoke(New MyDelegate(AddressOf SetDataGridFocus))
 
         Catch ex As Exception
             Me.Invoke(New MyDelegate(AddressOf PBClose))
-            EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", True})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", True})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", True})
@@ -1853,8 +2053,12 @@ AddMod2:
         End Try
     End Sub
 
-    Private Function ReturnFirstCell() As DataGridViewCell
-        Return DataGridView1.Rows(0).Cells(0)
+    Private Function ReturnFirstCell(dg As DataGridView) As DataGridViewCell
+        Return dg.Rows(0).Cells(0)
+    End Function
+
+    Private Function CurrentTabName() As String
+        Return TabControl1.SelectedTab.Name.ToLower
     End Function
 
     Private Sub DataGridView1_Scroll(sender As Object, e As ScrollEventArgs) Handles DataGridView1.Scroll
@@ -1865,7 +2069,7 @@ AddMod2:
         If DataGridView1.CurrentCell Is Nothing Then Exit Sub
         If DataGridView1.Cursor <> Cursors.Default Then Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Cursor", Cursors.Default})
         If DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("prefix") Or _
-            DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("suffix") Then Me.BeginInvoke(New MyDelegate(AddressOf DataGridClearSelection))
+            DataGridView1.Columns(DataGridView1.CurrentCell.ColumnIndex).Name.ToLower.Contains("suffix") Then Me.BeginInvoke(New MyDGDelegate(AddressOf DataGridClearSelection), DataGridView1)
     End Sub
 
     Private Sub chkSession_CheckedChanged(sender As Object, e As EventArgs) Handles chkSession.CheckedChanged
@@ -1883,6 +2087,7 @@ AddMod2:
     End Sub
 
     Private Sub btnSearch_Click(sender As Object, e As EventArgs) Handles btnSearch.Click
+        frmFilter.blStore = False
         frmFilter.ShowDialog(Me)
     End Sub
 
@@ -1897,34 +2102,50 @@ AddMod2:
             strOrderBy = strTestFilter.Substring(strTestFilter.IndexOf("ORDER BY") + 9)
         End If
         If dtRank.Rows.Count = 0 Then Exit Sub ' Don't apply the filter if we haven't loaded data yet
-        Dim FilterThread As New Threading.Thread(AddressOf ApplyFilter)
+        Dim FilterThread As New Threading.Thread(Sub() Me.ApplyFilter(dtRank, dtOverflow, DataGridView1, lblRecordCount, strOrderBy, strFilter))
         FilterThread.SetApartmentState(Threading.ApartmentState.STA)
         FilterThread.Start()
     End Sub
 
-    Public Sub ApplyFilter()
+    Public Sub SetStoreFilter(strTemp As String)
+        If strTemp = "" Then
+            strStoreFilter = ""
+            strStoreOrderBy = "[RANK] DESC"
+        Else
+            Dim strTestFilter As String = ConvertFilterToSQL(strTemp)
+            If strTestFilter = strStoreFilter Then Exit Sub
+            strStoreFilter = strTestFilter.Substring(0, strTestFilter.IndexOf("ORDER BY"))
+            strStoreOrderBy = strTestFilter.Substring(strTestFilter.IndexOf("ORDER BY") + 9)
+        End If
+        If dtStore.Rows.Count = 0 Then Exit Sub ' Don't apply the filter if we haven't loaded data yet
+        Dim FilterThread As New Threading.Thread(Sub() Me.ApplyFilter(dtStore, dtStoreOverflow, DataGridView2, lblRecordCount2, strStoreOrderBy, strStoreFilter))
+        FilterThread.SetApartmentState(Threading.ApartmentState.STA)
+        FilterThread.Start()
+    End Sub
+
+    Public Sub ApplyFilter(dt As DataTable, dtOver As DataTable, dg As DataGridView, lblRec As System.Windows.Forms.Label, strOrder As String, strF As String)
         Try
             Dim FirstCell As DataGridViewCell
             Dim intRows As Integer = 0
-            If strFilter.Trim.Length = 0 Then
-                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
-                intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
-                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows})
-                FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
-                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
+            If strF.Trim.Length = 0 Then
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg, "DataSource", dt})
+                intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Rows, "Count"}).ToString)
+                Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRec, "Text", "Number of Rows: " & intRows})
+                FirstCell = Me.Invoke(New DataGridCell(AddressOf ReturnFirstCell), New Object() {dg})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {dg, "FirstDisplayedCell", FirstCell})
                 Exit Sub
             End If
-            dtRankFilter = dtRank.Select(strFilter).CopyToDataTable
-            If strFilter.Contains("[*]") = False Then   ' Don't add from dtrOverflow if the filter is already dealing with membership in that table (or not) via the "*" field
+            dtRankFilter = dt.Select(strF).CopyToDataTable
+            If strF.Contains("[*]") = False Then   ' Don't add from dtrOverflow if the filter is already dealing with membership in that table (or not) via the "*" field
                 ' Apply the filter to the dtOverflow and add in any items that satisfy the conditions but aren't already selected
-                Dim drRows As DataRow() = dtOverflow.Select(strFilter)
+                Dim drRows As DataRow() = dtOver.Select(strF)
                 For Each row As DataRow In drRows
                     Dim strId As String = row("ID").ToString
                     Dim strName As String = row("Name").ToString
                     Dim dr As DataRow() = dtRankFilter.Select("[ID]='" & strId & "' AND [Name]='" & strName & "'")
                     If dr.Count = 0 Then
                         ' Get the associated datarow from dtRank and force it into dtRankFilter
-                        Dim dr2 As DataRow() = dtRank.Select("[ID]='" & strId & "' AND [Name]='" & strName & "'")
+                        Dim dr2 As DataRow() = dt.Select("[ID]='" & strId & "' AND [Name]='" & strName & "'")
                         If dr2.Count <> 0 Then
                             dtRankFilter.ImportRow(dr2(0))
                         End If
@@ -1933,8 +2154,8 @@ AddMod2:
             End If
             If strRawFilter.Contains("[Mod Total Value]") Then     ' This has a [Mod Total Value] component
                 For i = 0 To Math.Min(lstTotalTypes.Count - 1, 5)
-                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i + 1), "Visible", True})
-                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i + 1), "Width", 33})
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg.Columns("Tot" & i + 1), "Visible", True})
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg.Columns("Tot" & i + 1), "Width", 33})
                     For Each row As DataRow In dtRankFilter.Rows
                         Dim intTotal As Integer = 0
                         Dim strType As String = lstTotalTypes(i)
@@ -1946,29 +2167,535 @@ AddMod2:
                 Next
             Else
                 For i = 1 To 6
-                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Tot" & i), "Visible", False})
+                    BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg.Columns("Tot" & i), "Visible", False})
                 Next
             End If
-            If strOrderBy.Contains("Tot") = True Then     ' Reapply the ordering now that the total fields are populated
-                dtRankFilter = dtRankFilter.Select(strFilter).CopyToDataTable
+            If strOrder.Contains("Tot") = True Then     ' Reapply the ordering now that the total fields are populated
+                dtRankFilter = dtRankFilter.Select(strF).CopyToDataTable
             End If
             Dim dv As DataView = New DataView(dtRankFilter)
-            dv.Sort = strOrderBy
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dv})
-            intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Rows, "Count"}).ToString)
-            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount, "Text", "Number of Rows: " & intRows & " (filter active)"})
-            FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
-            Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
+            dv.Sort = strOrder
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg, "DataSource", dv})
+            intRows = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Rows, "Count"}).ToString)
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRec, "Text", "Number of Rows: " & intRows & " (filter active)"})
+            'FirstCell = CType(Me.Invoke(New MyDelegateFunction(AddressOf ReturnFirstCell)), DataGridViewCell)
+            'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {dg, "FirstDisplayedCell", FirstCell})
+            Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), dg)
+            'Me.Invoke(New MyDelegate(AddressOf SetDataGridFocus))
 
         Catch ex As Exception
             If ex.Message = "The source contains no DataRows." Then
                 MessageBox.Show("The search returned 0 records." & Environment.NewLine & Environment.NewLine & _
-                                "Query: " & Environment.NewLine & strFilter, "Search Returned No Results", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                Me.Invoke(New MyClickDelegate(AddressOf btnSearch_Click), New Object() {btnSearch, EventArgs.Empty})
+                                "Query: " & Environment.NewLine & strF, "Search Returned No Results", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Dim strTabName As String = CType(Me.Invoke(New MyDelegateFunction(AddressOf CurrentTabName)), String)
+                If strTabName.ToLower = "tabpage2" Then
+                    Me.Invoke(New MyClickDelegate(AddressOf btnShopSearch_Click), New Object() {btnShopSearch, EventArgs.Empty})
+                Else
+                    Me.Invoke(New MyClickDelegate(AddressOf btnSearch_Click), New Object() {btnSearch, EventArgs.Empty})
+                End If
+
             Else
-                ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Filter: " & strFilter & Environment.NewLine & "Order: " & strOrderBy)
+                ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Filter: " & strF & Environment.NewLine & "Order: " & strOrder)
             End If
+        End Try
+    End Sub
+
+    Private Sub btnDownloadJSON_Click(sender As Object, e As EventArgs) Handles btnDownloadJSON.Click
+        If txtThread.Text.Trim = "" Then
+            MessageBox.Show("You must enter a URL/thread.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Exit Sub
+        End If
+        Dim strThreadURL As String = "", strThread As String = ""
+        If txtThread.Text.Trim.StartsWith("http") Then
+            strThreadURL = txtThread.Text.Trim
+            strThread = txtThread.Text.Trim.Substring(txtThread.Text.Trim.IndexOf("threads/") + 8, _
+                                                      txtThread.Text.Trim.IndexOf(".json") - (txtThread.Text.Trim.IndexOf("threads/") + 8))
+        Else
+            strThreadURL = "http://poexplorer.com/threads/" & txtThread.Text.Trim & ".json"
+            strThread = txtThread.Text.Trim
+        End If
+        DownloadThread = New Threading.Thread(Sub() DownloadJSON(strThreadURL, strThread, True))
+        DownloadThread.SetApartmentState(Threading.ApartmentState.STA)
+        DownloadThread.Start()
+    End Sub
+
+    Public Sub DownloadJSON(strThreadURL As String, strThread As String, blLoad As Boolean)
+        Dim request As HttpWebRequest
+        Dim response As HttpWebResponse = Nothing
+        Dim sr As StreamReader
+        Dim blSuccess As Boolean = False
+        Try
+            'Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {1, "Downloading store JSON..."})
+            EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", False})
+            Dim storeMerge As New List(Of JSON_Store)
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {1, "Contacting poexplorer.com..."})
+            For i = 1 To 10000
+                Dim strThreadURLPage As String = strThreadURL & "?page=" & i
+                request = DirectCast(WebRequest.Create(strThreadURLPage), HttpWebRequest)
+                response = DirectCast(request.GetResponse(), HttpWebResponse)
+                sr = New StreamReader(response.GetResponseStream())
+                Dim strLines As String = sr.ReadToEnd()
+                If strLines = "[]" Then Exit For
+                Dim jss As New System.Web.Script.Serialization.JavaScriptSerializer()
+                Dim store As List(Of JSON_Store) = jss.Deserialize(Of List(Of JSON_Store))(strLines)
+                If store.Count = 0 Then Exit For
+                storeMerge.AddRange(store)
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblpb, "Text", "Downloading " & strThread & " store JSON (page " & i & ")..."})
+                Dim swOut As New StreamWriter(Application.StartupPath & "\Store\" & strThread & "-" & i & ".json")
+                swOut.WriteLine(strLines)
+                swOut.Close()
+                blSuccess = True
+            Next
+            If blLoad = False Then Exit Sub
+            If blSuccess = False Then
+                If FullInventory.Count <> 0 Then
+                    EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+                Else
+                    EnableDisableControls(True)
+                End If
+                Me.Invoke(New MyDelegate(AddressOf PBClose))
+                If FullStoreInventory.Count <> 0 Then
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", True})
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", True})
+                End If
+                MessageBox.Show("Could not find store or the store is empty." & Environment.NewLine & Environment.NewLine & _
+                                "URL: " & strThreadURL, "No Items Returned", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Exit Sub
+            End If
+            Dim storeQuery As IEnumerable(Of JSON_Store) = storeMerge.Where(Function(Item) Item.Rarity_Name = "Rare" AndAlso Item.Name.ToLower <> "" _
+                                                AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False)
+            If storeQuery.Count = 0 Then
+                If FullInventory.Count <> 0 Then
+                    EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+                Else
+                    EnableDisableControls(True)
+                End If
+                Me.Invoke(New MyDelegate(AddressOf PBClose))
+                If FullStoreInventory.Count <> 0 Then
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", True})
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", True})
+                End If
+                MessageBox.Show("Could not find any rare items in the store." & Environment.NewLine & Environment.NewLine & _
+                                "URL: " & strThreadURL, "No Rare Items Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Else
+                Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {storeQuery.Count + 10, "Download complete, now indexing all " & storeQuery.Count & " items..."})
+                IndexStoreJSON(storeQuery, False)
+            End If
+        Catch ex As Exception
+            Me.Invoke(New MyDelegate(AddressOf PBClose))
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex, "Thread URL: " & strThreadURL)
+        End Try
+    End Sub
+
+    Private Sub DataGridView2_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView2.CellClick
+        If e.RowIndex = -1 Then Exit Sub
+        If e.ColumnIndex = DataGridView2.Columns("Rank").Index Then
+            Dim sb As New System.Text.StringBuilder
+            If FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then AddGemWarning(sb)
+            sb.Append(RankExplanation(DataGridView2.CurrentRow.Cells("ID").Value.ToString & DataGridView2.CurrentRow.Cells("Name").Value.ToString))
+            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView2.CurrentRow.Cells("Name").Value.ToString)
+        ElseIf e.ColumnIndex = DataGridView2.Columns("*").Index AndAlso DataGridView2.CurrentRow.Cells("*").Value.ToString = "*" Then
+            If Application.OpenForms().OfType(Of frmResults).Any = False Then frmResults.Show(Me)
+            frmResults.Text = "Possible Mod Solutions for '" & DataGridView2.CurrentRow.Cells("Name").Value.ToString & "'"
+            frmResults.blStore = True
+            Dim tmpList As New CloneableList(Of String)
+            tmpList.Add(DataGridView2.CurrentRow.Cells("ID").Value.ToString)
+            tmpList.Add(DataGridView2.CurrentRow.Cells("Name").Value.ToString)
+            frmResults.MyData = tmpList
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+            ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+            ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf e.ColumnIndex = DataGridView2.Columns("Location").Index Then
+            ' Take the user to the GGG web page associated with the ThreadID
+            Dim strURL As String = "http://www.pathofexile.com/forum/view-thread/" & DataGridView2.Rows(e.RowIndex).Cells("ThreadID").Value
+            Process.Start(strURL)
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link") Then
+            MessageBox.Show(DataGridView2.CurrentRow.Cells("SktClrs").Value, "Socket/Link Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        End If
+    End Sub
+
+    Private Sub DataGridView2_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView2.CellMouseEnter
+        If blScroll = True Then Exit Sub
+        If IsValidCellAddress(DataGridView2, e.RowIndex, e.ColumnIndex) AndAlso _
+            (DataGridView2.Columns(e.ColumnIndex).Name.Contains("fix") Or _
+             DataGridView2.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link", "Rank", "Location", "*")) _
+         Then DataGridView2.Cursor = Cursors.Hand
+    End Sub
+
+    Private Sub DataGridView2_CellMouseLeave(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView2.CellMouseLeave
+        If blScroll = True Then Exit Sub
+        If IsValidCellAddress(DataGridView2, e.RowIndex, e.ColumnIndex) AndAlso _
+            (DataGridView2.Columns(e.ColumnIndex).Name.Contains("fix") Or _
+             DataGridView2.Columns(e.ColumnIndex).Name.CompareMultiple(StringComparison.Ordinal, "Sokt", "Link", "Rank", "Location", "*")) _
+         Then DataGridView2.Cursor = Cursors.Default
+    End Sub
+
+    Private Sub DataGridView2_CellMouseMove(sender As Object, e As DataGridViewCellMouseEventArgs) Handles DataGridView2.CellMouseMove
+        blScroll = False
+    End Sub
+
+    Private Sub DataGridView2_CellPainting(sender As Object, e As DataGridViewCellPaintingEventArgs) Handles DataGridView2.CellPainting
+        If e.RowIndex = -1 Then
+            DataGridViewCellPaintingHeaderFormat(sender, e)
+            Exit Sub
+        End If
+        Dim strName As String = DataGridView2.Columns(e.ColumnIndex).Name.ToLower
+        Dim intIndex As Integer = CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)
+        If strName.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
+            DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+        ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
+            DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+        End If
+    End Sub
+
+    Private Sub DataGridView2_RowPostPaint(sender As Object, e As DataGridViewRowPostPaintEventArgs) Handles DataGridView2.RowPostPaint
+        If e.RowIndex = -1 Then Exit Sub
+        DataGridViewRowPostPaint(DataGridView2, FullStoreInventory, sender, e)
+    End Sub
+
+    Private Sub DataGridView2_Scroll(sender As Object, e As ScrollEventArgs) Handles DataGridView2.Scroll
+        blScroll = True
+    End Sub
+
+    Private Sub DataGridView2_SelectionChanged(sender As Object, e As EventArgs) Handles DataGridView2.SelectionChanged
+        If DataGridView2.CurrentCell Is Nothing Then Exit Sub
+        If DataGridView2.Cursor <> Cursors.Default Then Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Cursor", Cursors.Default})
+        If DataGridView2.Columns(DataGridView2.CurrentCell.ColumnIndex).Name.ToLower.Contains("prefix") Or _
+            DataGridView2.Columns(DataGridView2.CurrentCell.ColumnIndex).Name.ToLower.Contains("suffix") Then Me.BeginInvoke(New MyDGDelegate(AddressOf DataGridClearSelection), DataGridView2)
+    End Sub
+
+    Private Sub TabControl1_DrawItem(ByVal sender As Object, ByVal e As System.Windows.Forms.DrawItemEventArgs) Handles TabControl1.DrawItem
+
+        'Firstly we'll define some parameters.
+        Dim CurrentTab As TabPage = TabControl1.TabPages(e.Index)
+        Dim ItemRect As Rectangle = TabControl1.GetTabRect(e.Index)
+        Dim ctlColor As Color = SystemColors.Control
+        Dim txtColor As Color = SystemColors.WindowText
+        Dim FillBrush As New SolidBrush(ctlColor)
+        Dim TextBrush As New SolidBrush(txtColor)
+        Dim sf As New StringFormat
+        sf.Alignment = StringAlignment.Center
+        sf.LineAlignment = StringAlignment.Center
+
+        'If we are currently painting the Selected TabItem we'll 
+        'change the brush colors and inflate the rectangle.
+        If CBool(e.State And DrawItemState.Selected) Then
+            FillBrush.Color = ctlColor
+            TextBrush.Color = txtColor
+            ItemRect.Inflate(2, 2)
+        End If
+
+        'Set up rotation for left and right aligned tabs
+        If TabControl1.Alignment = TabAlignment.Left Or TabControl1.Alignment = TabAlignment.Right Then
+            Dim RotateAngle As Single = 90
+            If TabControl1.Alignment = TabAlignment.Left Then RotateAngle = 270
+            Dim cp As New PointF(ItemRect.Left + (ItemRect.Width \ 2), ItemRect.Top + (ItemRect.Height \ 2))
+            e.Graphics.TranslateTransform(cp.X, cp.Y)
+            e.Graphics.RotateTransform(RotateAngle)
+            ItemRect = New Rectangle(-(ItemRect.Height \ 2), -(ItemRect.Width \ 2), ItemRect.Height, ItemRect.Width)
+        End If
+
+        'Next we'll paint the TabItem with our Fill Brush
+        e.Graphics.FillRectangle(FillBrush, ItemRect)
+
+        'Now draw the text.
+        e.Graphics.DrawString(CurrentTab.Text, e.Font, TextBrush, RectangleF.op_Implicit(ItemRect), sf)
+
+        'Reset any Graphics rotation
+        e.Graphics.ResetTransform()
+
+        'Finally, we should Dispose of our brushes.
+        FillBrush.Dispose()
+        TextBrush.Dispose()
+
+    End Sub
+
+    Private Sub txtThread_KeyDown(sender As Object, e As KeyEventArgs) Handles txtThread.KeyDown
+        If e.KeyCode = Keys.Enter Then
+            btnDownloadJSON_Click(sender, New EventArgs())
+        End If
+    End Sub
+
+    Private Sub btnStoreOffline_Click(sender As Object, e As EventArgs) Handles btnStoreOffline.Click
+        LoadCacheThread = New Threading.Thread(AddressOf LoadStoreCache)
+        LoadCacheThread.SetApartmentState(Threading.ApartmentState.STA)
+        LoadCacheThread.Start()
+    End Sub
+
+    Private Sub LoadStoreCache()
+        Dim sr As StreamReader
+        Dim storeMerge As New List(Of JSON_Store)
+        Dim dir = Application.StartupPath & "\Store"
+        Try
+            EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", False})
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {1, "Loading local poexplorer JSONs..."})
+            For Each file As String In System.IO.Directory.GetFiles(dir)
+                If System.IO.Path.GetExtension(file).ToLower = ".json" Then
+                    sr = New StreamReader(file)
+                    Dim strLines As String = sr.ReadToEnd()
+                    If strLines = "[]" Then Exit For
+                    Dim jss As New System.Web.Script.Serialization.JavaScriptSerializer()
+                    Dim store As List(Of JSON_Store) = jss.Deserialize(Of List(Of JSON_Store))(strLines)
+                    If store.Count = 0 Then Exit For
+                    storeMerge.AddRange(store)
+                End If
+            Next
+            Dim storeQuery As IEnumerable(Of JSON_Store) = storeMerge.Where(Function(Item) Item.Rarity_Name = "Rare" AndAlso Item.Name.ToLower <> "" _
+                                                   AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False)
+            If storeQuery.Count = 0 Then
+                MessageBox.Show("No items found", "No Items Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                If FullInventory.Count <> 0 Then
+                    EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+                Else
+                    EnableDisableControls(True)
+                End If
+                If FullStoreInventory.Count <> 0 Then
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", True})
+                    Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", True})
+                End If
+            Else
+                Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {storeQuery.Count + 10, "Finished loading cache, now indexing all " & storeQuery.Count & " items..."})
+                IndexStoreJSON(storeQuery, True)
+            End If
+        Catch ex As Exception
+            Me.Invoke(New MyDelegate(AddressOf PBClose))
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+        End Try
+    End Sub
+
+    Private Sub IndexStoreJSON(storeQuery As IEnumerable(Of JSON_Store), blOffline As Boolean)
+        Try
+            If blOffline Then FullStoreInventory.Clear() : TempStoreInventory.Clear() : dtStore.Clear() : dtStoreOverflow.Clear()
+            Dim lngCounter As Long = 0
+            'Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
+            For Each storeItem As JSON_Store In storeQuery
+                'MessageBox.Show("Name: " & storeItem.Name & Environment.NewLine & "Mod Count: " & storeItem.Stats.Count)
+                Dim storeFullItem As New FullItem
+                storeFullItem.ID = storeItem.ID
+                storeFullItem.Name = storeItem.Name
+                storeFullItem.W = storeItem.W
+                storeFullItem.H = storeItem.H
+                storeFullItem.Quality = storeItem.Quality
+                Select Case storeItem.Item_Type
+                    Case "Glove"
+                        storeFullItem.GearType = "Gloves"
+                    Case "Boot"
+                        storeFullItem.GearType = "Boots"
+                    Case "BodyArmour"
+                        storeFullItem.GearType = "Chest"
+                    Case "OneHandAxe"
+                        storeFullItem.GearType = "Axe (1h)"
+                    Case "OneHandMace"
+                        storeFullItem.GearType = "Mace (1h)"
+                    Case "OneHandSword", "ThrustingOneHandSword"
+                        storeFullItem.GearType = "Sword (1h)"
+                    Case "TwoHandSword"
+                        storeFullItem.GearType = "Sword (2h)"
+                    Case "TwoHandAxe"
+                        storeFullItem.GearType = "Axe (2h)"
+                    Case "TwoHandMace"
+                        storeFullItem.GearType = "Mace (2h)"
+                    Case Else
+                        storeFullItem.GearType = storeItem.Item_Type
+                End Select
+                storeFullItem.ItemType = storeItem.Base_Name
+                storeFullItem.TypeLine = storeItem.Base_Name
+                storeFullItem.Sockets = IIf(storeItem.Socket_Count.HasValue, storeItem.Socket_Count, 0)
+                Dim sb As New System.Text.StringBuilder(11), intGroup As Integer = 0, blFirst As Boolean = True
+                For i = 0 To storeFullItem.Sockets - 1
+                    If intGroup = storeItem.Sockets(i).Group And blFirst = False Then
+                        sb.Append("-")
+                    ElseIf blFirst = False Then
+                        sb.Append(" ")
+                    End If
+                    blFirst = False
+                    sb.Append(storeItem.Sockets(i).Attr)
+                    intGroup = storeItem.Sockets(i).Group
+                Next
+                sb.Replace("I", "b") : sb.Replace("S", "r") : sb.Replace("D", "g")
+                storeFullItem.Colours = sb.ToString
+                If storeItem.Linked_Socket_Count.HasValue Then
+                    storeFullItem.Links = IIf(storeItem.Linked_Socket_Count = 1, 0, storeItem.Linked_Socket_Count)
+                Else
+                    storeFullItem.Links = 0
+                End If
+                storeFullItem.Level = CByte(IIf(storeItem.Level.HasValue, storeItem.Level, 1))
+                storeFullItem.League = StrConv(storeItem.League_Name, vbProperCase)
+                storeFullItem.Location = storeItem.Account
+                storeFullItem.Rarity = Rarity.Rare
+                storeFullItem.Price = storeItem.Price
+                storeFullItem.ThreadID = storeItem.Thread_ID
+                Dim queryImp As IEnumerable(Of Stats) = storeItem.Stats.Where(Function(s) s.Hidden = False And s.Implicit = True)
+                For Each s As Stats In queryImp
+                    Dim newImpMod As New FullMod
+                    newImpMod.FullText = s.Name
+                    If s.Name.IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                        newImpMod.Value1 = GetNumeric(s.Name, 0, s.Name.IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                        newImpMod.MaxValue1 = GetNumeric(s.Name, s.Name.IndexOf("-", StringComparison.OrdinalIgnoreCase), s.Name.Length)
+                    Else
+                        newImpMod.Value1 = GetNumeric(s.Name)
+                    End If
+                    newImpMod.Type1 = GetChars(s.Name)
+                    storeFullItem.ImplicitMods.Add(newImpMod)
+                Next
+
+                Dim query As IEnumerable(Of Stats) = storeItem.Stats.Where(Function(s) s.Hidden = False And s.Implicit = False)
+                Dim lstStr As New List(Of String)
+                For Each Stat In query
+                    lstStr.Add(Stat.Name)
+                Next
+                ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
+                ReorderExplicitMods(lstStr, lstStr.Count)
+                blAddedOne = False
+                If Not IsNothing(lstStr) Then
+                    blSolomonsJudgment.Clear()
+                    EvaluateExplicitMods(lstStr, lstStr.Count, storeItem.ID.ToString, storeItem.Name, storeFullItem, TempStoreInventory)
+                    If storeFullItem.ExplicitPrefixMods.Count = 0 And storeFullItem.ExplicitSuffixMods.Count = 0 Then
+                        If TempStoreInventory.Count = 0 Then
+                            EvaluateExplicitMods(lstStr, lstStr.Count, storeItem.ID.ToString, storeItem.Name, storeFullItem, TempStoreInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                        Else
+                            If TempStoreInventory(TempStoreInventory.Count - 1).Name <> storeItem.Name Then
+                                EvaluateExplicitMods(lstStr, lstStr.Count, storeItem.ID.ToString, storeItem.Name, storeFullItem, TempStoreInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                            End If
+                        End If
+                    End If
+                    If blAddedOne = True Then
+                        ' Check if we've already added this rankexplanation key to the dictionary
+                        If RankExplanation.ContainsKey(storeItem.ID.ToString & storeItem.Name) = True Then
+                            RankExplanation(storeItem.ID.ToString & storeItem.Name) = RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
+                        Else
+                            ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
+                            RankExplanation.Add(storeItem.ID.ToString & storeItem.Name, RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1))
+                        End If
+                        RankExplanation.Remove(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
+                        FullStoreInventory.Add(TempStoreInventory(TempStoreInventory.Count - 1).Clone)
+                        TempStoreInventory.RemoveAt(TempStoreInventory.Count - 1)
+                        If lngStoreCount < TempStoreInventory.Count Then
+                            FullStoreInventory(FullStoreInventory.Count - 1).OtherSolutions = True
+                        End If
+                        lngStoreCount = TempStoreInventory.Count
+                    Else
+                        FullStoreInventory.Add(storeFullItem)
+                    End If
+                End If
+                lngCounter += 1
+                If lngCounter Mod 10 = 0 Then
+                    Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
+                End If
+            Next
+            If dtStore.Rows.Count > 0 Then dtStore.Clear()
+            If dtStoreOverflow.Rows.Count > 0 Then dtStoreOverflow.Clear()
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {FullStoreInventory.Count, "Adding Store inventories to datatable"})
+            AddToDataTable(FullStoreInventory, dtStore, False, "")
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {TempStoreInventory.Count, "Adding Store overflow inventories to datatable"})
+            AddToDataTable(TempStoreInventory, dtStoreOverflow, False, "")
+
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", dtStore})
+            Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView2})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("%").DefaultCellStyle, "Format", "n1"})
+            Me.Invoke(New MyDGDelegate(AddressOf SortDataGridView), DataGridView2)
+            'Me.Invoke(New MyDelegate(AddressOf SortDataGridView))
+            Me.Invoke(New MyControlDelegate(AddressOf SetDataGridViewWidths), New Object() {DataGridView2})
+            ' To make room for new Price column take away from SubType and Implicit columns
+            Dim intWidth As Integer = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView2.Columns("SubType"), "Width"}), Integer) - 15, 0)
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("SubType"), "Width", intWidth})
+            intWidth = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView2.Columns("Implicit"), "Width"}), Integer) - 35, 0)
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2.Columns("Implicit"), "Width", intWidth})
+            Dim FirstCell As DataGridViewCell
+            FirstCell = Me.Invoke(New DataGridCell(AddressOf ReturnFirstCell), New Object() {DataGridView2})
+            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "FirstDisplayedCell", FirstCell})
+
+            Me.Invoke(New MyDelegate(AddressOf PBClose))
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "WindowState", FormWindowState.Maximized})
+
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", True})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Left", 550})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {gpLegend, "Visible", True})
+            Me.Invoke(New MyDelegate(AddressOf BringLegendToFront))
+            Dim intRows As Integer = CInt(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView2.Rows, "Count"}).ToString)
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Text", "Number of Rows: " & intRows})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", True})
+            Me.BeginInvoke(New MyDGDelegate(AddressOf SetDataGridFocus), DataGridView2)
+
+            If strStoreFilter.Trim <> "" Then ApplyFilter(dtStore, dtStoreOverflow, DataGridView2, lblRecordCount2, strStoreOrderBy, strStoreFilter)
+            Dim password As SecureString
+            If blFormChanged Then
+                password = CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {WPFPassword, "SecurePassword"}), SecureString)
+            Else
+                password = UserSettings("AccountPassword").Decrypt
+            End If
+            Email = Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {txtEmail, "Text"}).ToString
+            useSession = CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {chkSession, "Checked"}), Boolean)
+            saveSettings(password)
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
+
+        Catch ex As Exception
+            Me.Invoke(New MyDelegate(AddressOf PBClose))
+            If FullInventory.Count <> 0 Then
+                EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
+            Else
+                EnableDisableControls(True)
+            End If
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+        End Try
+    End Sub
+
+    Private Sub btnShopSearch_Click(sender As Object, e As EventArgs) Handles btnShopSearch.Click
+        frmShopFilter.blStore = True
+        frmShopFilter.ShowDialog(Me)
+    End Sub
+
+    Private Sub TabControl1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles TabControl1.SelectedIndexChanged
+        If DataGridView1.Visible = True Then DataGridView1.PerformLayout() : DataGridView1.Focus()
+        If DataGridView2.Visible = True Then DataGridView2.PerformLayout() : DataGridView2.Focus()
+    End Sub
+
+    Private Sub btnRefresh_Click(sender As Object, e As EventArgs) Handles btnRefresh.Click
+        Dim dlgResult As DialogResult
+        dlgResult = MessageBox.Show("Refreshing all the downloaded store caches may take some time. Are you sure?", "Please Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+        If dlgResult = Windows.Forms.DialogResult.No Then Exit Sub
+        RefreshCacheThread = New Threading.Thread(AddressOf RefreshStoreCache)
+        RefreshCacheThread.SetApartmentState(Threading.ApartmentState.STA)
+        RefreshCacheThread.Start()
+    End Sub
+
+    Public Sub RefreshStoreCache()
+        Try
+            Dim dir = Application.StartupPath & "\Store"
+            EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
+            Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", False})
+            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {1, "Indexing local poexplorer JSONs..."})
+            Dim lstThread As New List(Of String)
+            For Each file As String In System.IO.Directory.GetFiles(dir)
+                Dim strTemp As String = System.IO.Path.GetFileNameWithoutExtension(file).Substring(0, System.IO.Path.GetFileNameWithoutExtension(file).IndexOf("-"))
+                If lstThread.Contains(strTemp) = False Then lstThread.Add(strTemp)
+            Next
+            For Each strThread In lstThread
+                DownloadJSON("http://poexplorer.com/threads/" & strThread & ".json", strThread, False)
+            Next
+            btnStoreOffline_Click(btnStoreOffline, EventArgs.Empty)
+        Catch ex As Exception
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
 End Class

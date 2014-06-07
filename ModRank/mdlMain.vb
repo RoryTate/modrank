@@ -8,12 +8,20 @@ Module mdlMain
     Public bytDisplay As Byte = 21     ' Don't display column index's past this in the datagrid...also used by the search filter when populating combobox's
     Public dtMods As DataTable = New DataTable()
     Public dtWeights As DataTable = New DataTable()
+    Public dtStore As DataTable = New DataTable()
+    Public dtStoreOverflow As DataTable = New DataTable()
     Public bytColumns As Byte = 0       ' The max number of columns displayed in the datagridview
     Public strD As String = ";"     ' The delimiter used in the filter...use one that will not be likely to appear in SQL
-    Public strFilter As String = ""
-    Public strOrderBy As String = ""
+    Public strFilter As String = "", strStoreFilter As String = ""
+    Public strOrderBy As String = "", strStoreOrderBy As String = ""
     Public strRawFilter As String = ""
     Public lstTotalTypes As New List(Of String)
+
+    Public FullInventory As New List(Of FullItem)
+    Public TempInventory As New List(Of FullItem)
+
+    Public FullStoreInventory As New List(Of FullItem)
+    Public TempStoreInventory As New List(Of FullItem)
 
     ' RCPD = Read Control Property Delegate (used a lot so abbreviated)
     Public Delegate Function RCPD(ByVal MyControl As Object, ByVal MyProperty As Object) As String
@@ -40,6 +48,10 @@ Module mdlMain
                 dg.Columns(bytDisplay - 2).Width = 25
                 Settings.UserSettings("RowWidths") = UserSettings("RowWidths").Substring(0, UserSettings("RowWidths").LastIndexOf(",")) & ",25,30"
             End If
+            If intCounter <= bytDisplay Then     ' Add in an extra column for the Price column for stores
+                dg.Columns(bytDisplay).Width = 50
+                Settings.UserSettings("RowWidths") = UserSettings("RowWidths").Substring(0, UserSettings("RowWidths").LastIndexOf(",")) & ",30,50"
+            End If
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
@@ -47,7 +59,10 @@ Module mdlMain
 
     Public Sub HideColumns(frm As Form, dg As DataGridView)
         bytColumns = CByte(frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Columns, "Count"}).ToString)
+        Dim strParentName As String = frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Parent, "Name"}).ToString.ToLower
+        Dim strFormName As String = frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {frm, "Text"}).ToString
         For i = bytDisplay To bytColumns - 1
+            If (strParentName = "tabpage2" Or strFormName.Contains("ModRank") = False) And i = bytDisplay Then Continue For
             frm.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg.Columns(i), "Visible", False})
         Next
     End Sub
@@ -65,18 +80,26 @@ Module mdlMain
     Public Function RunModResultQuery(newFullItem As FullItem, Optional result As DataRow = Nothing, Optional strForceDescription As String = "", Optional strAffix As String = "") As DataRow()
         Try
             Dim strGearType As String = ""
-            If newFullItem.GearType.ToString = "Sword" Or newFullItem.GearType.ToString = "Axe" Then
-                If newFullItem.H = 4 And newFullItem.W = 2 Then
-                    strGearType = "[2h Swords and Axes]"
-                Else
-                    If newFullItem.TypeLine.ToString.CompareMultiple(StringComparison.OrdinalIgnoreCase, "corroded blade", "longsword", "butcher sword", "headman's sword") Then
-                        strGearType = "[2h Swords and Axes]"
-                    Else
-                        strGearType = "[1h Swords and Axes]"
-                    End If
-                End If
-            ElseIf newFullItem.GearType.ToString = "Mace" Then
-                If newFullItem.H = 4 And newFullItem.W = 2 Then strGearType = "[2h Maces]" Else strGearType = "[1h Maces]"
+            'If newFullItem.GearType.ToString = "Sword" Or newFullItem.GearType.ToString = "Axe" Then
+            '    If newFullItem.H = 4 And newFullItem.W = 2 Then
+            '        strGearType = "[2h Swords and Axes]"
+            '    Else
+            '        If newFullItem.TypeLine.ToString.CompareMultiple(StringComparison.OrdinalIgnoreCase, "corroded blade", "longsword", "butcher sword", "headman's sword") Then
+            '            strGearType = "[2h Swords and Axes]"
+            '        Else
+            '            strGearType = "[1h Swords and Axes]"
+            '        End If
+            '    End If
+            'ElseIf newFullItem.GearType.ToString = "Mace" Then
+            '    If newFullItem.H = 4 And newFullItem.W = 2 Then strGearType = "[2h Maces]" Else strGearType = "[1h Maces]"
+            If newFullItem.GearType.ToString.CompareMultiple(StringComparison.Ordinal, "Sword (2h)", "Axe (2h)") Then
+                strGearType = "[2h Swords and Axes]"
+            ElseIf newFullItem.GearType.ToString.CompareMultiple(StringComparison.Ordinal, "Sword (1h)", "Axe (1h)") Then
+                strGearType = "[1h Swords and Axes]"
+            ElseIf newFullItem.GearType.ToString = "Mace (2h)" Then
+                strGearType = "[2h Maces]"
+            ElseIf newFullItem.GearType.ToString = "Mace (1h)" Then
+                strGearType = "[1h Maces]"
             Else
                 strGearType = newFullItem.GearType.ToString
             End If
@@ -108,7 +131,8 @@ Module mdlMain
         For Each strLine In strLines
             Dim strElement() As String = strLine.Split(CChar(strD))
             If strElement(1).CompareMultiple(StringComparison.Ordinal, "[Prefix Type]", "[Suffix Type]", "[Number of Prefixes]", _
-                                             "[Number of Suffixes]", "[Implicit Type]", "[Number of Implicits]", "[Mod Total Value]", "[Total Number of Explicits]") = True Then
+                                             "[Number of Suffixes]", "[Implicit Type]", "[Number of Implicits]", "[Mod Total Value]", "[Total Number of Explicits]", _
+                                             "[Socket Colour and Links]", "[Price]") = True Then
                 Dim strAndOr As String = IIf(strElement(2) = "<>", " AND ", " OR ").ToString ' For <>, the multiple field OR conditions must become an AND condition to function correctly
                 Select Case strElement(1)   ' Element at second position is the datatable field
                     Case "[Number of Prefixes]"
@@ -119,6 +143,21 @@ Module mdlMain
                         strElement(1) = "[icount]"
                     Case "[Total Number of Explicits]"
                         strElement(1) = "[pcount]+[scount]"
+                    Case "[Socket Colour and Links]"
+                        strElement(1) = "[SktClrsSearch]"
+                        Dim tempList As List(Of String) = strElement(3).Split(" ").ToList   ' Reorder each linked socket string to put them in alphabetical order
+                        Dim newList As New List(Of String)
+                        For Each s As String In tempList
+                            s = s.Replace("-", "")  ' Field accepts either dashes or not, so strip them out for search
+                            s = s.Replace("'", "")  ' Take out single quotes...we'll add them back in later
+                            s = s.Replace("%", "")
+                            Dim c() As Char = s.ToCharArray
+                            Array.Sort(c)
+                            newList.Add(New String(c))
+                        Next
+                        'Dim strJoin As String = IIf(strElement(2) = "LIKE", "% %", " ")
+                        strElement(3) = "'" & IIf(strElement(2) = "LIKE", "%", "") & String.Join(" ", newList.ToArray()) & IIf(strElement(2) = "LIKE", "%", "") & "'"
+                        'If strElement(2) = "LIKE" Then strElement(3) = strElement(3).Substring(0, strElement(3).Length - 8) & "%'" ' Strip off last " AND %"
                     Case "[Prefix Type]"
                         sb.Append(strElement(0) & "([pft1]" & strElement(2) & strElement(3) & strAndOr & _
                                                 "[pft2]" & strElement(2) & strElement(3) & strAndOr & _
@@ -133,6 +172,9 @@ Module mdlMain
                         sb.Append(strElement(0) & "([it1]" & strElement(2) & strElement(3) & strAndOr & _
                                                 "[it2]" & strElement(2) & strElement(3) & strAndOr & _
                                                 "[it3]" & strElement(2) & strElement(3) & ")" & strElement(4) & strElement(5))
+                        Continue For
+                    Case "[Price]"
+                        sb.Append(strElement(0) & "([PriceNum]" & strElement(2) & strElement(3) & " AND [PriceOrb]=" & strElement(4) & ")" & strElement(5) & strElement(6))
                         Continue For
                     Case "[Mod Total Value]"
                         ' Check to see if there is a "/" in the value...if so, have to look at value1 and maxvalue1 for type1

@@ -54,7 +54,7 @@
     <!--This is the name of the weights file you want to use by default (note: for a file named "weights-default.csv" the actual value would be "default" -->
     <Setting name="WeightMax" value="9" />
     <Setting name="WeightMin" value="1" />
-    <Setting name="RowWidths" value="34,32,46,90,38,66,190,190,190,190,190,190,170,21,80,34,30,32,29,25,30" />
+    <Setting name="RowWidths" value="34,32,46,90,38,66,190,190,190,190,190,190,170,21,80,34,30,32,29,25,30,50" />
     <Setting name="FavoriteLeague" value="" />
     <Setting name="FavoriteCharacter" value="" />
     <Setting name="CompactMode" value="false" />
