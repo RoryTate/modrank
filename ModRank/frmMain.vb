@@ -237,6 +237,9 @@ Public Class frmMain
             dtRank.Columns.Add("Tot6", GetType(Single))
             dtRank.Columns.Add("SktClrs", GetType(String))
             dtRank.Columns.Add("SktClrsSearch", GetType(String))
+            dtRank.Columns.Add("Arm", GetType(Integer))
+            dtRank.Columns.Add("Eva", GetType(Integer))
+            dtRank.Columns.Add("ES", GetType(Integer))
             dtRank.Columns.Add("pft1", GetType(String))
             dtRank.Columns.Add("pt1", GetType(String))
             dtRank.Columns.Add("pt12", GetType(String))
@@ -714,93 +717,104 @@ Public Class frmMain
                 Else
                     newFullItem.GearType = myGear.GearType.ToString
                 End If
-                    If newFullItem.ItemType Is Nothing Or newFullItem.GearType = "Unknown" Then
-                        MessageBox.Show("An item (Name: " & myGear.Name & ", Location: " & newFullItem.Location & ") does not have an entry for its type and/or subtype in the APIs. Please report this to:" & Environment.NewLine & Environment.NewLine & _
-                                        "https://github.com/RoryTate/modrank/issues" & Environment.NewLine & Environment.NewLine & _
-                                        "Also, please provide the actual base type (i.e. Quiver) and subtype (i.e. Light Quiver) that are missing.", "Item Type/Subtype Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                        Continue For
+                If newFullItem.ItemType Is Nothing Or newFullItem.GearType = "Unknown" Then
+                    MessageBox.Show("An item (Name: " & myGear.Name & ", Location: " & newFullItem.Location & ") does not have an entry for its type and/or subtype in the APIs. Please report this to:" & Environment.NewLine & Environment.NewLine & _
+                                    "https://github.com/RoryTate/modrank/issues" & Environment.NewLine & Environment.NewLine & _
+                                    "Also, please provide the actual base type (i.e. Quiver) and subtype (i.e. Light Quiver) that are missing.", "Item Type/Subtype Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Continue For
+                End If
+                newFullItem.TypeLine = myGear.TypeLine.ToString
+                newFullItem.H = CByte(myGear.H)
+                newFullItem.W = CByte(myGear.W)
+                newFullItem.X = myGear.X
+                newFullItem.Y = myGear.Y
+                newFullItem.Name = myGear.Name
+                newFullItem.Rarity = myGear.Rarity
+                For i = 0 To myGear.Requirements.Count - 1
+                    If myGear.Requirements(i).Name.ToLower = "level" Then
+                        newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
+                        newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
+                        Exit For ' We don't care about any other requirements, so exit the loop
                     End If
-                    newFullItem.TypeLine = myGear.TypeLine.ToString
-                    newFullItem.H = CByte(myGear.H)
-                    newFullItem.W = CByte(myGear.W)
-                    newFullItem.X = myGear.X
-                    newFullItem.Y = myGear.Y
-                    newFullItem.Name = myGear.Name
-                    newFullItem.Rarity = myGear.Rarity
-                    For i = 0 To myGear.Requirements.Count - 1
-                        If myGear.Requirements(i).Name.ToLower = "level" Then
-                            newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
-                            newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
-                            Exit For ' We don't care about any other requirements, so exit the loop
+                Next
+                If Not IsNothing(myGear.Properties) Then
+                    For i = 0 To myGear.Properties.Count - 1
+                        If myGear.Properties(i).Name.ToLower = "armour" Then
+                            newFullItem.Arm = CInt(myGear.Properties(i).Values(0).Item1)
+                        ElseIf myGear.Properties(i).Name.ToLower = "evasion rating" Then
+                            newFullItem.Eva = CInt(myGear.Properties(i).Values(0).Item1)
+                        ElseIf myGear.Properties(i).Name.ToLower = "energy shield" Then
+                            newFullItem.ES = CInt(myGear.Properties(i).Values(0).Item1)
                         End If
                     Next
-                    newFullItem.Sockets = CByte(myGear.NumberOfSockets)
-                    Dim sb As New System.Text.StringBuilder(11), intGroup As Integer = 0, blFirst As Boolean = True
-                    For i = 0 To newFullItem.Sockets - 1
-                        If intGroup = myGear.Sockets(i).Group And blFirst = False Then
-                            sb.Append("-")
-                        ElseIf blFirst = False Then
-                            sb.Append(" ")
-                        End If
-                        blFirst = False
-                        sb.Append(myGear.Sockets(i).Attribute)
-                        intGroup = myGear.Sockets(i).Group
-                    Next
-                    sb.Replace("I", "b") : sb.Replace("S", "r") : sb.Replace("D", "g")
-                    newFullItem.Colours = sb.ToString
-                    For i = 6 To 0 Step -1
-                        If myGear.IsLinked(i) Then
-                            newFullItem.Links = CByte(IIf(i = 1, 0, i)) : Exit For
-                        End If
-                    Next
-                    If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
-                    newFullItem.Corrupted = myGear.Corrupted
-                    If Not IsNothing(myGear.Implicitmods) Then
-                        For i = 0 To myGear.Implicitmods.Count - 1
-                            Dim newFullMod As New FullMod
-                            newFullMod.FullText = myGear.Implicitmods(i)
-                            If myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
-                                newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i), 0, myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
-                                newFullMod.MaxValue1 = GetNumeric(myGear.Implicitmods(i), myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Implicitmods(i).Length)
-                            Else
-                                newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i))
-                            End If
-                            newFullMod.Type1 = GetChars(myGear.Implicitmods(i))
-                            newFullItem.ImplicitMods.Add(newFullMod)
-                        Next
+                End If
+                newFullItem.Sockets = CByte(myGear.NumberOfSockets)
+                Dim sb As New System.Text.StringBuilder(11), intGroup As Integer = 0, blFirst As Boolean = True
+                For i = 0 To newFullItem.Sockets - 1
+                    If intGroup = myGear.Sockets(i).Group And blFirst = False Then
+                        sb.Append("-")
+                    ElseIf blFirst = False Then
+                        sb.Append(" ")
                     End If
-                    ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
-                    ReorderExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count)
-                    blAddedOne = False
-                    If Not IsNothing(myGear.Explicitmods) Then
-                        blSolomonsJudgment.Clear()
-                        EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory)
-                        If newFullItem.ExplicitPrefixMods.Count = 0 And newFullItem.ExplicitSuffixMods.Count = 0 Then
-                            If TempInventory.Count = 0 Then
-                                EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
-                            Else
-                                If TempInventory(TempInventory.Count - 1).Name <> myGear.Name Then
-                                    EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
-                                End If
-                            End If
-                        End If
-                        If blAddedOne = True Then
-                            ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
-                            RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
-                            RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
-                            FullInventory.Add(TempInventory(TempInventory.Count - 1).Clone)
-                            TempInventory.RemoveAt(TempInventory.Count - 1)
-                            If lngCount < TempInventory.Count Then
-                                FullInventory(FullInventory.Count - 1).OtherSolutions = True
-                            End If
-                            lngCount = TempInventory.Count
+                    blFirst = False
+                    sb.Append(myGear.Sockets(i).Attribute)
+                    intGroup = myGear.Sockets(i).Group
+                Next
+                sb.Replace("I", "b") : sb.Replace("S", "r") : sb.Replace("D", "g")
+                newFullItem.Colours = sb.ToString
+                For i = 6 To 0 Step -1
+                    If myGear.IsLinked(i) Then
+                        newFullItem.Links = CByte(IIf(i = 1, 0, i)) : Exit For
+                    End If
+                Next
+                If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
+                newFullItem.Corrupted = myGear.Corrupted
+                If Not IsNothing(myGear.Implicitmods) Then
+                    For i = 0 To myGear.Implicitmods.Count - 1
+                        Dim newFullMod As New FullMod
+                        newFullMod.FullText = myGear.Implicitmods(i)
+                        If myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                            newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i), 0, myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                            newFullMod.MaxValue1 = GetNumeric(myGear.Implicitmods(i), myGear.Implicitmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Implicitmods(i).Length)
                         Else
-                            FullInventory.Add(newFullItem)
+                            newFullMod.Value1 = GetNumeric(myGear.Implicitmods(i))
+                        End If
+                        newFullMod.Type1 = GetChars(myGear.Implicitmods(i))
+                        newFullItem.ImplicitMods.Add(newFullMod)
+                    Next
+                End If
+                ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
+                ReorderExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count)
+                blAddedOne = False
+                If Not IsNothing(myGear.Explicitmods) Then
+                    blSolomonsJudgment.Clear()
+                    EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory)
+                    If newFullItem.ExplicitPrefixMods.Count = 0 And newFullItem.ExplicitSuffixMods.Count = 0 Then
+                        If TempInventory.Count = 0 Then
+                            EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                        Else
+                            If TempInventory(TempInventory.Count - 1).Name <> myGear.Name Then
+                                EvaluateExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count, myGear.UniqueIDHash.ToString, myGear.Name, newFullItem, TempInventory, True, True)       ' We didn't find anything, so run again, allowing legacy values to be set
+                            End If
                         End If
                     End If
-                    statusCounter += 1 : If statusCounter Mod 100 = 0 Then statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
-                    ' Enable the following to limit the item loading to 100 items when quick development cycles are required
-                    'If statusCounter = 100 Then Exit Sub
+                    If blAddedOne = True Then
+                        ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
+                        RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
+                        RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
+                        FullInventory.Add(TempInventory(TempInventory.Count - 1).Clone)
+                        TempInventory.RemoveAt(TempInventory.Count - 1)
+                        If lngCount < TempInventory.Count Then
+                            FullInventory(FullInventory.Count - 1).OtherSolutions = True
+                        End If
+                        lngCount = TempInventory.Count
+                    Else
+                        FullInventory.Add(newFullItem)
+                    End If
+                End If
+                statusCounter += 1 : If statusCounter Mod 100 = 0 Then statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
+                ' Enable the following to limit the item loading to 100 items when quick development cycles are required
+                'If statusCounter = 100 Then Exit Sub
             Next
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
@@ -1602,6 +1616,9 @@ AddMod2:
                         row("PriceOrb") = ""
                     End If
                 End If
+                row("Arm") = it.Arm
+                row("Eva") = it.Eva
+                row("ES") = it.ES
                 row("ThreadID") = If(IsNothing(it.ThreadID), "", it.ThreadID)
                 row("Index") = myList.IndexOf(it)
                 row("ID") = it.ID.ToString
@@ -1618,6 +1635,7 @@ AddMod2:
 
     Private Sub DataGridView1_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
         If e.RowIndex = -1 Then Exit Sub
+        Dim strGearType As String = ""
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
             If FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then AddGemWarning(sb)
@@ -1635,6 +1653,10 @@ AddMod2:
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
         ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+            ShowAllPossibleMods(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+            ShowAllPossibleMods(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
         ElseIf e.ColumnIndex = DataGridView1.Columns("Location").Index Then
             frmLocation.X = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).X
             frmLocation.Y = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).Y
@@ -1685,6 +1707,112 @@ AddMod2:
         End If
         sb.Append(IIf(MyMod(intIndex).UnknownValues, "Note: the value(s) for this mod are beyond the possible ranges listed...this is likely a 'legacy' mod value for which the level cannot be indicated.", "Current level is indicated by (*)."))
         MsgBox(sb.ToString, , "Mod Info for " & strAffix & " '" & MyMod(intIndex).FullText & "'")
+    End Sub
+
+    Public Sub ShowAllPossibleMods(dg As DataGridView, myItem As FullItem, myMod As List(Of FullMod), strAffix As String)
+        Dim strGearType As String = ""
+        If myItem.GearType.ToString.CompareMultiple(StringComparison.Ordinal, "Sword (2h)", "Axe (2h)") Then
+            strGearType = "[2h Swords and Axes]"
+        ElseIf myItem.GearType.ToString.CompareMultiple(StringComparison.Ordinal, "Sword (1h)", "Axe (1h)") Then
+            strGearType = "[1h Swords and Axes]"
+        ElseIf myItem.GearType.ToString = "Mace (2h)" Then
+            strGearType = "[2h Maces]"
+        ElseIf myItem.GearType.ToString = "Mace (1h)" Then
+            strGearType = "[1h Maces]"
+        Else
+            strGearType = myItem.GearType.ToString
+        End If
+        Dim sb As New System.Text.StringBuilder, lstMods As New List(Of String)
+        For Each row As DataRow In dtWeights.Rows
+            Dim strDesc As String = row("Description")
+            Dim dtRow() As DataRow = dtMods.Select("[Description]='" & strDesc & "' AND " & strGearType & "=True " & _
+                                                   "AND Level<=" & Math.Round(1.25 * (myItem.Level + 0.49)))
+            If dtRow.Count = 0 Then Continue For
+            If dtRow(0)("Prefix/Suffix") = strAffix Then
+                If (strGearType = "Chest" Or strGearType = "Shield" Or strGearType = "Boots") And _
+                    dtRow(0)("Categories").ToString.CompareMultiple(StringComparison.Ordinal, "Evasion", "Evasion and stun recovery", "Armor", "Armor and stun recovery", _
+                                                                   "Energy shield", "Energy shield and stun recovery", "Dexterity increase", "Strenght increase", "Intelligence increase") Then
+                    If (myItem.Eva > 0 And ((myItem.Arm = 0 And myItem.ES = 0 And dtRow(0)("Categories").Contains("Evasion")) Or dtRow(0)("Categories").ToString = "Dexterity increase")) Or _
+                        (myItem.Arm > 0 And ((myItem.Eva = 0 And myItem.ES = 0 And dtRow(0)("Categories").Contains("Armor")) Or dtRow(0)("Categories").ToString = "Strenght increase")) Or _
+                        (myItem.ES > 0 And ((myItem.Eva = 0 And myItem.Arm = 0 And dtRow(0)("Categories").Contains("Energy shield")) Or dtRow(0)("Categories").ToString = "Intelligence increase")) Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf (strGearType = "Chest" Or strGearType = "Shield" Or strGearType = "Boots" Or strGearType = "Helmet" Or strGearType = "Gloves") And _
+                    dtRow(0)("Categories").ToString.CompareMultiple(StringComparison.Ordinal, "Hybrid defense", "Hybrid defense and stun recovery") Then
+                    If (myItem.Eva > 0 And myItem.Arm > 0 And dtRow(0)("Description").ToString.Contains("Armour And Evasion")) Or _
+                        (myItem.ES > 0 And myItem.Arm > 0 And dtRow(0)("Description").ToString.Contains("Armour And Energy Shield")) Or _
+                        (myItem.Eva > 0 And myItem.ES > 0 And dtRow(0)("Description").ToString.Contains("Evasion And Energy Shield")) Or _
+                        (myItem.Arm > 0 And dtRow(0)("Description").ToString.Contains("Armour") And dtRow(0)("Description").ToString.Contains("Evasion") = False And dtRow(0)("Description").ToString.Contains("Energy Shield") = False) Or _
+                        (myItem.Eva > 0 And dtRow(0)("Description").ToString.Contains("Evasion") And dtRow(0)("Description").ToString.Contains("Armour") = False And dtRow(0)("Description").ToString.Contains("Energy Shield") = False) Or _
+                        (myItem.ES > 0 And dtRow(0)("Description").ToString.Contains("Energy Shield") And dtRow(0)("Description").ToString.Contains("Evasion") = False And dtRow(0)("Description").ToString.Contains("Armour") = False) Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf strGearType = "Helmet" And dtRow(0)("Categories").ToString.CompareMultiple(StringComparison.Ordinal, "Evasion", "Evasion and stun recovery", "Armor", "Armor and stun recovery", _
+                                                                   "Energy shield", "Energy shield and stun recovery", "Dexterity increase", "Strenght increase") Then
+                    If (myItem.Eva > 0 And ((myItem.Arm = 0 And myItem.ES = 0 And dtRow(0)("Categories").Contains("Evasion")) Or dtRow(0)("Categories").ToString = "Dexterity increase")) Or _
+                        (myItem.Arm > 0 And ((myItem.Eva = 0 And myItem.ES = 0 And dtRow(0)("Categories").Contains("Armor")) Or dtRow(0)("Categories").ToString = "Strenght increase")) Or _
+                        (myItem.ES > 0 And myItem.Eva = 0 And myItem.Arm = 0 And dtRow(0)("Categories").Contains("Energy shield")) Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf strGearType = "Gloves" And dtRow(0)("Categories").ToString.CompareMultiple(StringComparison.Ordinal, "Evasion", "Evasion and stun recovery", "Armor", "Armor and stun recovery", _
+                                                                   "Energy shield", "Energy shield and stun recovery", "Strenght increase", "Intelligence increase") Then
+                    If (myItem.Arm > 0 And ((myItem.Eva = 0 And myItem.ES = 0 And dtRow(0)("Categories").Contains("Armor")) Or dtRow(0)("Categories").ToString = "Strenght increase")) Or _
+                        (myItem.ES > 0 And ((myItem.Eva = 0 And myItem.Arm = 0 And dtRow(0)("Categories").Contains("Energy shield")) Or dtRow(0)("Categories").ToString = "Intelligence increase")) Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf strGearType = "Shield" And dtRow(0)("Description").ToString.CompareMultiple(StringComparison.Ordinal, "Local Socketed Cold Gem Level +", "Local Socketed Fire Gem Level +", _
+                                                  "Local Socketed Lightning Gem Level +", "Spell Dmg +%", "Spell Critical Strike Chance +%", "Mana Regeneration Rate +%") Then
+                    If myItem.ES > 0 And myItem.Arm = 0 And myItem.Eva = 0 Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf strGearType = "Shield" And dtRow(0)("Description").ToString.CompareMultiple(StringComparison.Ordinal, "Local Socketed Melee Gem Level +") Then
+                    If myItem.Eva > 0 Or myItem.Arm > 0 Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                ElseIf (strGearType = "Chest" Or strGearType = "Shield" Or strGearType = "Boots" Or strGearType = "Helmet" Or strGearType = "Gloves") And _
+                    dtRow(0)("Categories").ToString.CompareMultiple(StringComparison.Ordinal, "Mana") Then
+                    If myItem.ES > 0 Then
+                        If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                            lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                        End If
+                    End If
+                Else
+                    If lstMods.Contains(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString)) = False Then
+                        lstMods.Add(row("ExportField").ToString & IIf(row("ExportField2").ToString = "", "", "/" & row("ExportField2").ToString))
+                    End If
+                End If
+            ElseIf strDesc = "Base Item Found Rarity +%" Then   ' Rarity can be both a suffix and a prefix
+                For Each r As DataRow In dtRow
+                    If r("Prefix/Suffix") <> strAffix Then
+                        If lstMods.Contains("% increased Rarity of Items found") = False Then lstMods.Add("% increased Rarity of Items found")
+                        Exit For
+                    End If
+                Next
+            End If
+        Next
+        lstMods.Sort()
+        For Each strMod In lstMods
+            For Each m As FullMod In myMod
+                If m.Type1 & IIf(m.Type2 = "", "", "/" & m.Type2) = strMod Then
+                    sb.Append("(*) ")
+                    Exit For
+                End If
+            Next
+            sb.Append(strMod & Environment.NewLine)
+        Next
+        MessageBox.Show(sb.ToString, "List of Possible " & strAffix & " Mods for Type: " & myItem.GearType, MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
     Public Sub AddGemWarning(ByRef sb As System.Text.StringBuilder)
@@ -2230,6 +2358,7 @@ AddMod2:
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {lblRecordCount2, "Visible", False})
             Dim storeMerge As New List(Of JSON_Store)
+            RemoveAllStoreJSONs(strThread)
             Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {1, "Contacting poexplorer.com..."})
             For i = 1 To 10000
                 Dim strThreadURLPage As String = strThreadURL & "?page=" & i
@@ -2313,6 +2442,10 @@ AddMod2:
             ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
         ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
             ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+            ShowAllPossibleMods(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+            ShowAllPossibleMods(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
         ElseIf e.ColumnIndex = DataGridView2.Columns("Location").Index Then
             ' Take the user to the GGG web page associated with the ThreadID
             Dim strURL As String = "http://www.pathofexile.com/forum/view-thread/" & DataGridView2.Rows(e.RowIndex).Cells("ThreadID").Value
@@ -2482,6 +2615,12 @@ AddMod2:
     Private Sub IndexStoreJSON(storeQuery As IEnumerable(Of JSON_Store), blOffline As Boolean)
         Try
             If blOffline Then FullStoreInventory.Clear() : TempStoreInventory.Clear() : dtStore.Clear() : dtStoreOverflow.Clear()
+            Dim strThreadID As String = storeQuery(0).Thread_ID
+            If blOffline = False And FullStoreInventory.Count > 0 Then
+                For i = FullStoreInventory.Count - 1 To 0 Step -1
+                    If FullStoreInventory(i).ThreadID = strThreadID Then FullStoreInventory.RemoveAt(i)
+                Next
+            End If
             Dim lngCounter As Long = 0
             'Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
             For Each storeItem As JSON_Store In storeQuery
@@ -2536,6 +2675,9 @@ AddMod2:
                     storeFullItem.Links = 0
                 End If
                 storeFullItem.Level = CByte(IIf(storeItem.Level.HasValue, storeItem.Level, 1))
+                storeFullItem.Arm = IIf(IsNothing(storeItem.Armour), 0, storeItem.Armour)
+                storeFullItem.Eva = IIf(IsNothing(storeItem.Evasion), 0, storeItem.Evasion)
+                storeFullItem.ES = IIf(IsNothing(storeItem.Energy_Shield), 0, storeItem.Energy_Shield)
                 storeFullItem.League = StrConv(storeItem.League_Name, vbProperCase)
                 storeFullItem.Location = storeItem.Account
                 storeFullItem.Rarity = Rarity.Rare
@@ -2683,9 +2825,25 @@ AddMod2:
                 If lstThread.Contains(strTemp) = False Then lstThread.Add(strTemp)
             Next
             For Each strThread In lstThread
+                RemoveAllStoreJSONs(strThread)
                 DownloadJSON("http://poexplorer.com/threads/" & strThread & ".json", strThread, False)
             Next
             btnStoreOffline_Click(btnStoreOffline, EventArgs.Empty)
+        Catch ex As Exception
+            ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
+        End Try
+    End Sub
+
+    Public Sub RemoveAllStoreJSONs(strStore As String)
+        Try
+            Dim dir = Application.StartupPath & "\Store"
+            For i = 1 To 1000
+                If File.Exists(dir & "\" & strStore & "-" & i & ".json") = True Then
+                    File.Delete(dir & "\" & strStore & "-" & i & ".json")
+                Else
+                    Exit Sub
+                End If
+            Next
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try

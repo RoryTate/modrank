@@ -67,6 +67,14 @@ Public Class frmResults
             frmMain.ShowModInfo(DataGridView1, FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
         ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
             frmMain.ShowModInfo(DataGridView1, TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name) - 1), e)
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.ShowAllPossibleMods(DataGridView1, FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.ShowAllPossibleMods(DataGridView1, TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "*" Then
+            frmMain.ShowAllPossibleMods(DataGridView1, FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso DataGridView1.Rows(e.RowIndex).Cells("*").Value.ToString = "" Then
+            frmMain.ShowAllPossibleMods(DataGridView1, TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), TempInv(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
         ElseIf e.ColumnIndex = DataGridView1.Columns("Location").Index Then
             If blStore = True Then
                 Dim strURL As String = "http://www.pathofexile.com/forum/view-thread/" & DataGridView1.Rows(e.RowIndex).Cells("ThreadID").Value

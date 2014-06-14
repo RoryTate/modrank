@@ -35,6 +35,9 @@ Public Class frmFilter
                             cmbField0.Items.Add("Number of Implicits")
                             cmbField0.Items.Add("Mod Total Value")
                             cmbField0.Items.Add("Total Number of Explicits")
+                            cmbField0.Items.Add("Arm")
+                            cmbField0.Items.Add("Eva")
+                            cmbField0.Items.Add("ES")
                             If blStore = True Then cmbField0.Items.Add("Price") : cmbField0.Items.Add("ThreadID")
                             blAddedSpecialFields = True
                         End If
@@ -145,7 +148,7 @@ Public Class frmFilter
                                                "Number of Implicits", "Mod Total Value", "Total Number of Explicits", "Socket Number/Colour", "Socket Colour and Links", "Price") = False Then
                     If dtRank.Columns(cmbFld.Text).DataType = System.Type.GetType("System.String") Then
                         strTemp = "'" & IIf(strOp.Equals("LIKE"), "%", "").ToString & IIf(cmbText.Visible, cmbText.Text, txtText.Text).ToString.Trim & IIf(strOp.Equals("LIKE"), "%", "").ToString & "'"
-                    ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Rank", "Level", "Sokt", "Link", "%") = True Then
+                    ElseIf cmbFld.Text.CompareMultiple(StringComparison.Ordinal, "Rank", "Level", "Sokt", "Link", "%", "Arm", "Eva", "ES") = True Then
                         If strOp.Equals("LIKE") Then
                             MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                             Return ""
@@ -179,7 +182,7 @@ Public Class frmFilter
                         MessageBox.Show("Unable to apply/save the filter. LIKE comparison cannot be used with numeric values.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         Return ""
                     End If
-                    If Integer.TryParse(txtValue.Text.Trim, intTest) = False And Single.TryParse(txtValue.Text.Trim, sngTest) = False And txtValue.Text.Contains("/") = False Then
+                    If Integer.TryParse(txtValue.Text.Trim, intTest) = False And Single.TryParse(txtValue.Text.Trim, sngTest) = False And txtValue.Text.Contains("/") = False And cmbText.Text.Trim <> "NULL" Then
                         MessageBox.Show("Unable to apply/save the filter. You must enter a valid number for the value field.", "Invalid Number", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1)
                         txtValue.SelectAll() : txtValue.Focus()
                         Return ""
@@ -390,7 +393,7 @@ Public Class frmFilter
         ElseIf cmbFld.Text = "Price" Then
             cmbText.Left = intLeft + 44 : cmbText.Width = intMaxWidth - 44
             cmbText.Visible = True : Me.Controls("txtText" & intCurrentIndex).Visible = False
-            cmbText.DataSource = New String() {"Exa", "Chaos", "Alch", "GCP"} : cmbText.SelectedIndex = 0
+            cmbText.DataSource = New String() {"Exa", "Chaos", "Alch", "GCP", "NULL"} : cmbText.SelectedIndex = 0
             Dim cmbOperator As ComboBox = CType(Me.Controls("cmbOperator" & intCurrentIndex), ComboBox)
             cmbOperator.SelectedIndex = cmbOperator.FindStringExact("<=")     ' >= is the most common comparison for price searches
             Me.Controls("txtValue" & intCurrentIndex).Visible = True : Me.Controls("txtValue" & intCurrentIndex).Focus()

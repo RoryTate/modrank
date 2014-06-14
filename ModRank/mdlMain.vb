@@ -174,7 +174,8 @@ Module mdlMain
                                                 "[it3]" & strElement(2) & strElement(3) & ")" & strElement(4) & strElement(5))
                         Continue For
                     Case "[Price]"
-                        sb.Append(strElement(0) & "([PriceNum]" & strElement(2) & strElement(3) & " AND [PriceOrb]=" & strElement(4) & ")" & strElement(5) & strElement(6))
+                        sb.Append(strElement(0) & "([PriceNum]" & strElement(2) & IIf(strElement(3) = "", 0, strElement(3)) & _
+                                  " AND [PriceOrb]=" & IIf(strElement(4) = "'NULL'", "''", strElement(4)) & ")" & strElement(5) & strElement(6))
                         Continue For
                     Case "[Mod Total Value]"
                         ' Check to see if there is a "/" in the value...if so, have to look at value1 and maxvalue1 for type1

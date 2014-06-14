@@ -91,7 +91,7 @@ namespace POEApi.Model
             : base(GearType.Helmet, "Iron Hat", "Cone Helmet", "Barbute Helmet", "Close Helmet", "Gladiator Helmet", "Reaver Helmet", "Siege Helmet", "Samite Helmet", "Ezomyte Burgonet", "Royal Burgonet", "Eternal Burgonet",
                                     "Leather Cap", "Tricorne", "Leather Hood", "Wolf Pelt", "Hunter Hood", "Noble Tricorne", "Ursine Pelt", "Silken Hood", "Sinner Tricorne", "Lion Pelt",
                                     "Vine Circlet", "Iron Circlet", "Torture Cage", "Tribal Circlet", "Bone Circlet", "Lunaris Circlet", "Steel Circlet", "Necromancer Circlet", "Solaris Circlet", "Mind Cage", "Hubris Circlet",
-                                    "Battered Helm", "Visored Sallet", "Gilded Sallet", "Secutor Helm", "Fencer Helm", "Lacquered Helmet", "Fluted Bascinet", "Pig Faced Bascinet", "Nightmare Bascinet", "Sallet", // "Sallet" must be after other base types which contain the word "sallet".
+                                    "Battered Helm", "Visored Sallet", "Gilded Sallet", "Secutor Helm", "Fencer Helm", "Lacquered Helmet", "Fluted Bascinet", "Pig-Faced Bascinet", "Nightmare Bascinet", "Sallet", // "Sallet" must be after other base types which contain the word "sallet".
                                     "Rusted Coif", "Soldier Helmet", "Great Helmet", "Crusader Helmet", "Aventail Helmet", "Zealot Helmet", "Great Crown", "Magistrate Crown", "Prophet Crown", "Praetor Crown",
                                     "Scare Mask", "Plague Mask", "Iron Mask", "Festival Mask", "Golden Mask", "Raven Mask", "Callous Mask", "Regicide Mask", "Harlequin Mask", "Vaal Mask", "Deicide Mask")
         {

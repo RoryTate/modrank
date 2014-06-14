@@ -21,6 +21,9 @@ Public Class FullItem
     Public Property Links As Byte
     Public Property Level As Byte = 1
     Public Property LevelGem As Boolean
+    Public Property Arm As Integer = 0
+    Public Property Eva As Integer = 0
+    Public Property ES As Integer = 0
     Public Property ExplicitPrefixMods As New CloneableList(Of FullMod)
     Public Property ExplicitSuffixMods As New CloneableList(Of FullMod)
     Public Property OtherSolutions As Boolean = False       ' True if there are other solutions to the mod distribution
