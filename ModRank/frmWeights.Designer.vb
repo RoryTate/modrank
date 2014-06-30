@@ -28,6 +28,8 @@ Partial Class frmWeights
         Me.btnCancel = New System.Windows.Forms.Button()
         Me.dgWeights = New System.Windows.Forms.DataGridView()
         Me.BindingSource1 = New System.Windows.Forms.BindingSource(Me.components)
+        Me.Label1 = New System.Windows.Forms.Label()
+        Me.txtFilter = New System.Windows.Forms.TextBox()
         CType(Me.dgWeights, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.BindingSource1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
@@ -66,11 +68,27 @@ Partial Class frmWeights
         DataGridViewCellStyle1.SelectionForeColor = System.Drawing.SystemColors.HighlightText
         DataGridViewCellStyle1.WrapMode = System.Windows.Forms.DataGridViewTriState.[False]
         Me.dgWeights.DefaultCellStyle = DataGridViewCellStyle1
-        Me.dgWeights.Location = New System.Drawing.Point(13, 13)
+        Me.dgWeights.Location = New System.Drawing.Point(13, 48)
         Me.dgWeights.Name = "dgWeights"
         Me.dgWeights.RowHeadersVisible = False
-        Me.dgWeights.Size = New System.Drawing.Size(736, 616)
+        Me.dgWeights.Size = New System.Drawing.Size(736, 581)
         Me.dgWeights.TabIndex = 0
+        '
+        'Label1
+        '
+        Me.Label1.AutoSize = True
+        Me.Label1.Location = New System.Drawing.Point(12, 20)
+        Me.Label1.Name = "Label1"
+        Me.Label1.Size = New System.Drawing.Size(32, 13)
+        Me.Label1.TabIndex = 3
+        Me.Label1.Text = "Filter:"
+        '
+        'txtFilter
+        '
+        Me.txtFilter.Location = New System.Drawing.Point(51, 17)
+        Me.txtFilter.Name = "txtFilter"
+        Me.txtFilter.Size = New System.Drawing.Size(154, 20)
+        Me.txtFilter.TabIndex = 4
         '
         'frmWeights
         '
@@ -79,6 +97,8 @@ Partial Class frmWeights
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.CancelButton = Me.btnCancel
         Me.ClientSize = New System.Drawing.Size(761, 681)
+        Me.Controls.Add(Me.txtFilter)
+        Me.Controls.Add(Me.Label1)
         Me.Controls.Add(Me.dgWeights)
         Me.Controls.Add(Me.btnCancel)
         Me.Controls.Add(Me.btnSave)
@@ -90,10 +110,13 @@ Partial Class frmWeights
         CType(Me.dgWeights, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.BindingSource1, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
+        Me.PerformLayout()
 
     End Sub
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancel As System.Windows.Forms.Button
     Friend WithEvents dgWeights As System.Windows.Forms.DataGridView
     Friend WithEvents BindingSource1 As System.Windows.Forms.BindingSource
+    Friend WithEvents Label1 As System.Windows.Forms.Label
+    Friend WithEvents txtFilter As System.Windows.Forms.TextBox
 End Class

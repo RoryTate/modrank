@@ -1,48 +1,56 @@
 ﻿Public Class JSON_Store
-    Public ID As Integer
-    Public Name As String
-    Public Base_Name As String
-    Public Account As String
-    Public Quality As Integer
-    Public Armour As Integer?
-    Public Evasion As Integer?
-    Public Energy_Shield As Integer?
-    Public Level As Single?
-    Public Price As Price
-    Public Thread_ID As String
-    Public Verified As Boolean
-    Public Identified As Boolean
-    Public Indexed_At As Date
-    Public Thread_Updated_At As Date
-    Public League_Name As String
-    Public Rarity_Name As String
-    Public Socket_Combination As String
-    Public Corrupted As Boolean
-    Public Item_Type As String
-    Public Socket_Count As Integer?
-    Public Linked_Socket_Count As Integer?
-    Public Sockets As List(Of Socket)
-    Public W As Integer
-    Public H As Integer
-    Public Stats As List(Of Stats)
+    Inherits CloneableObject
+
+    Public Property ID As Integer
+    Public Property Name As String
+    Public Property Base_Name As String
+    Public Property Account As String
+    Public Property Quality As Integer
+    Public Property Armour As Integer?
+    Public Property Evasion As Integer?
+    Public Property Energy_Shield As Integer?
+    Public Property Level As Single?
+    Public Property Price As Price
+    Public Property Thread_ID As String
+    Public Property Verified As Boolean
+    Public Property Identified As Boolean
+    Public Property Indexed_At As Date
+    Public Property Thread_Updated_At As Date
+    Public Property League_Name As String
+    Public Property Rarity_Name As String
+    Public Property Socket_Combination As String
+    Public Property Corrupted As Boolean
+    Public Property Item_Type As String
+    Public Property Socket_Count As Integer?
+    Public Property Linked_Socket_Count As Integer?
+    Public Property Sockets As List(Of Socket)
+    Public Property W As Integer
+    Public Property H As Integer
+    Public Property Stats As List(Of Stats)
 End Class
 
 Public Class Price
-    Public Exa As Single?
-    Public Chaos As Single?
-    Public GCP As Single?
-    Public Alch As Single?
+    Inherits CloneableObject
+
+    Public Property Exa As Single?
+    Public Property Chaos As Single?
+    Public Property GCP As Single?
+    Public Property Alch As Single?
 End Class
 
 Public Class Stats
-    Public Name As String
-    Public Mod_ID As Integer
-    Public Value As Single?
-    Public Hidden As Boolean
-    Public Implicit As Boolean
+    Inherits CloneableObject
+
+    Public Property Name As String
+    Public Property Mod_ID As Integer
+    Public Property Value As Single?
+    Public Property Hidden As Boolean
+    Public Property Implicit As Boolean
 End Class
 
 Public Class Socket
-    Public Attr As String
-    Public Group As Integer
+    Inherits CloneableObject
+
+    Public Property Attr As String
+    Public Property Group As Integer
 End Class

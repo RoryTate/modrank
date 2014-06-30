@@ -354,7 +354,7 @@ Public Class frmMain
                 Environment.NewLine & Environment.NewLine & "Note: A less than or equal to (<=) comparison is used for this value."
             ToolTip1.SetToolTip(lblLowWeightMod, strLowWeightMod)
             ToolTip1.SetToolTip(lblMin, strLowWeightMod)
-            Dim strDoubleClick As String = "Click on any of the Rank, Prefix, Suffix, and * cells (where values exist) to get more detailed information on the item."
+            Dim strDoubleClick As String = "Click on any of the Rank, Prefix, Suffix, *, Location, and Sokt cells (where values exist) to get more detailed information on the item."
             ToolTip1.SetToolTip(lblDoubleClick, strDoubleClick)
 
             Dim strDownload As String = "Enter poexplorer/GGG forum thread or full JSON URL in this box. For example:" & Environment.NewLine & Environment.NewLine & _
@@ -519,6 +519,14 @@ Public Class frmMain
 
             If Not blOffline Then statusController.DisplayMessage("Done loading character inventory data!")
 
+            FullInventoryCache.Clear() : TempInventoryCache.Clear()
+            Dim strCache As String = Application.StartupPath & "\fsinv.cache"
+            If blOffline And File.Exists(strCache) Then LoadCache(FullInventory, strCache) Else LoadCache(FullInventoryCache, strCache)
+            strCache = Application.StartupPath & "\tsinv.cache"
+            If blOffline And File.Exists(strCache) Then LoadCache(TempInventory, strCache) Else LoadCache(TempInventoryCache, strCache)
+            
+            If blOffline And File.Exists(Application.StartupPath & "\fsinv.cache") Then GoTo DataTableLoad
+
             Dim lngCount As Long = 0    ' Counter to keep track of where we are in temporary inventory additions (used by complex search algorithm)
             ' Get only the gear types out of the temp inventory list (we don't need gems, maps, currency, etc)
             statusCounter = 0 : lngModCounter = 0
@@ -537,11 +545,23 @@ Public Class frmMain
                 AddToFullInventory(query, True, lngCount)
             Next
 
+DataTableLoad:
+            statusController.DisplayMessage("Calculating rank scores...")
+            RecalculateAllRankings(True, False, True)
             statusController.DisplayMessage("Completed indexing all " & statusCounter & " stash rare items. comprising a total of approximately " & lngModCounter & " mods.")
             statusController.DisplayMessage("Now loading the data into a table to display the results...please wait, this may take a moment.")
 
             AddToDataTable(FullInventory, dtRank, True, "Full Inventory Table")
+            strCache = Application.StartupPath & "\fsinv.cache"
+            If blOffline = False Or File.Exists(strCache) = False Then
+                WriteCache(FullInventory, strCache)
+            End If
+
             AddToDataTable(TempInventory, dtOverflow, True, "Overflow Inventory Table")
+            strCache = Application.StartupPath & "\tsinv.cache"
+            If blOffline = False Or File.Exists(strCache) = False Then
+                WriteCache(TempInventory, strCache)
+            End If
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", dtRank})
             Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
@@ -769,6 +789,8 @@ Public Class frmMain
                 Next
                 If myGear.IsQuality Then newFullItem.Quality = CByte(myGear.Quality)
                 newFullItem.Corrupted = myGear.Corrupted
+                Dim pri As New Price : pri.Exa = 0 : pri.Alch = 0 : pri.Chaos = 0 : pri.GCP = 0
+                newFullItem.Price = pri
                 If Not IsNothing(myGear.Implicitmods) Then
                     For i = 0 To myGear.Implicitmods.Count - 1
                         Dim newFullMod As New FullMod
@@ -783,6 +805,72 @@ Public Class frmMain
                         newFullItem.ImplicitMods.Add(newFullMod)
                     Next
                 End If
+                Dim blIndexed As Boolean = False
+                If FullInventoryCache.Count <> 0 Then
+                    Dim q As IEnumerable(Of FullItem) = FullInventoryCache.Where(Function(s) s.ID = myGear.UniqueIDHash And s.Name = myGear.Name)
+                    If q.Count <> 0 Then
+                        Dim testMod As New CloneableList(Of FullMod)
+                        For Each m As CloneableList(Of FullMod) In {q(0).ExplicitPrefixMods, q(0).ExplicitSuffixMods}
+                            For Each myMod As FullMod In m
+                                Dim newMod As New FullMod
+                                Dim qry As IEnumerable(Of FullMod) = testMod.Where(Function(x) x.Type1 = myMod.Type1)
+                                If qry.Count = 0 Then
+                                    newMod.Type1 = myMod.Type1
+                                    newMod.Value1 = myMod.Value1
+                                    newMod.MaxValue1 = myMod.MaxValue1
+                                    testMod.Add(newMod)
+                                Else
+                                    testMod(testMod.IndexOf(qry(0))).Value1 += myMod.Value1
+                                End If
+                                If myMod.Type2 <> "" Then
+                                    Dim newMod2 As New FullMod
+                                    qry = testMod.Where(Function(x) x.Type1 = myMod.Type2)
+                                    If qry.Count = 0 Then
+                                        newMod2.Type1 = myMod.Type2
+                                        newMod2.Value1 = myMod.Value2
+                                        testMod.Add(newMod2)
+                                    Else
+                                        testMod(testMod.IndexOf(qry(0))).Value1 += myMod.Value2
+                                    End If
+                                End If
+                            Next
+                        Next
+                        For Each m As String In myGear.Explicitmods
+                            Dim strName As String = GetChars(m)
+                            Dim sngValue As Single = GetNumeric(m)
+                            Dim qry As IEnumerable(Of FullMod) = testMod.Where(Function(x) x.Type1 = strName)
+                            If qry.Count = 0 Then
+                                GoTo IndexMod
+                            Else
+                                If testMod(testMod.IndexOf(qry(0))).Value1 <> sngValue Then
+                                    If m.Contains("-") Then
+                                        If testMod(testMod.IndexOf(qry(0))).Value1 <> GetNumeric(m, 0, m.IndexOf("-", StringComparison.OrdinalIgnoreCase)) Then GoTo IndexMod
+                                        If testMod(testMod.IndexOf(qry(0))).MaxValue1 <> GetNumeric(m, m.IndexOf("-", StringComparison.OrdinalIgnoreCase), m.Length) Then GoTo IndexMod
+                                    Else
+                                        GoTo IndexMod
+                                    End If
+                                End If
+                            End If
+                        Next
+                        newFullItem.Rank = q(0).Rank
+                        newFullItem.Percentile = q(0).Percentile
+                        newFullItem.ExplicitPrefixMods = q(0).ExplicitPrefixMods.Clone
+                        newFullItem.ExplicitSuffixMods = q(0).ExplicitSuffixMods.Clone
+                        newFullItem.OtherSolutions = q(0).OtherSolutions
+                        FullInventory.Add(newFullItem)
+                        If newFullItem.OtherSolutions = True Then
+                            Dim q2 As IEnumerable(Of FullItem) = TempInventoryCache.Where(Function(s) s.ID = myGear.UniqueIDHash And s.Name = myGear.Name)
+                            For Each qItem In q2
+                                Dim tmpItem As FullItem = CType(qItem.Clone, FullItem)
+                                TempInventory.Add(tmpItem)
+                            Next
+                            lngCount = TempInventory.Count
+                        End If
+                        blIndexed = True
+                    End If
+                End If
+                If blIndexed = True Then GoTo IncrementProgressBar
+IndexMod:
                 ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
                 ReorderExplicitMods(myGear.Explicitmods, myGear.Explicitmods.Count)
                 blAddedOne = False
@@ -800,8 +888,8 @@ Public Class frmMain
                     End If
                     If blAddedOne = True Then
                         ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
-                        RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
-                        RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
+                        'RankExplanation.Add(myGear.UniqueIDHash & myGear.Name, RankExplanation(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1))
+                        'RankExplanation.Remove(myGear.UniqueIDHash & myGear.Name & TempInventory.Count - 1)
                         FullInventory.Add(TempInventory(TempInventory.Count - 1).Clone)
                         TempInventory.RemoveAt(TempInventory.Count - 1)
                         If lngCount < TempInventory.Count Then
@@ -812,7 +900,18 @@ Public Class frmMain
                         FullInventory.Add(newFullItem)
                     End If
                 End If
-                statusCounter += 1 : If statusCounter Mod 100 = 0 Then statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
+IncrementProgressBar:
+                statusCounter += 1 : If statusCounter Mod 100 = 0 Then
+                    If FullInventoryCache.Count = 0 Then
+                        statusController.DisplayMessage("Indexed " & statusCounter & " rare items and " & lngModCounter & " mods...")
+                    Else
+                        If lngModCounter <> 0 Then
+                            statusController.DisplayMessage("Indexed " & statusCounter & " rare items using local cache, plus indexed " & lngModCounter & " mods for new/updated items...")
+                        Else
+                            statusController.DisplayMessage("Indexed " & statusCounter & " rare items using local cache...")
+                        End If
+                    End If
+                End If
                 ' Enable the following to limit the item loading to 100 items when quick development cycles are required
                 'If statusCounter = 100 Then Exit Sub
             Next
@@ -943,7 +1042,7 @@ Public Class frmMain
                 Next
                 RemoveFromModList.RemoveRange(0, RemoveFromModList.Count)
             End If
-            Dim sngRank As Single = 0
+            'Dim sngRank As Single = 0
             ' Use simple method if all the mods are independent and a 1-1 mapping exists, so we can set them in a quick, efficient and straightforward manner
             ' Also check the global boolean blForceFullSearch to see if we've called ourselves again because this method won't work
             If (blCombinedModsAdded = False And MaxIndex.Count = ModList.Count) And blForceFullSearch = False Then
@@ -968,8 +1067,8 @@ Public Class frmMain
                     If temprow.Count = 0 Then
                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
                         strAffix = RunModResultQuery(newfullitem, , ModList(i)("Description").ToString)(0)("Prefix/Suffix").ToString
-                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
-                        RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), strID, strName, strAffix)
+                        'Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower))("MaxV"))
+                        'RankUnknownValueMod(newMod, sngMaxV, MaxIndex(newMod.Type1.ToLower), strID, strName, strAffix)
                         GoTo AddMod
                     End If
                     Dim strKey As String = temprow(temprow.Count - 1).Key.ToLower     ' Choose the last row to get the highest possible level, just like the combined algorithm does
@@ -983,10 +1082,12 @@ Public Class frmMain
                     End If
                     newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                     strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                    sngRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, strID, strName, strAffix)
-                    Dim sb As New System.Text.StringBuilder
-                    sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ") " & IIf(i = intModCount - 1, "Final Rank", " (running total)" & vbCrLf).ToString)
-                    AddExplanation(strID & strName, sb)
+                    newMod.ModLevelActual = CInt(GetNumeric(strKey))
+                    newMod.ModLevelMax = MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower)
+                    'sngRank += CalculateRank(newMod, MaxIndex(newMod.Type1.ToLower & newMod.Type2.ToLower), strKey, strID, strName, strAffix)
+                    'Dim sb As New System.Text.StringBuilder
+                    'sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ") " & IIf(i = intModCount - 1, "Final Rank", " (running total)" & vbCrLf).ToString)
+                    'AddExplanation(strID & strName, sb)
 
 AddMod:
                     If newMod.Type1 = "% increased Rarity of Items found" Then  ' If it's rarity then it can be a prefix or a suffix, so see if one of the lists is full
@@ -1003,11 +1104,11 @@ AddMod:
                     ' We've likely tried to fit a combined mod requiring item into our simple algorithm...drop everything and try the "full" method
                     newfullitem.ExplicitPrefixMods.RemoveRange(0, newfullitem.ExplicitPrefixMods.Count) ' Remove any mod list changes we might have made
                     newfullitem.ExplicitSuffixMods.RemoveRange(0, newfullitem.ExplicitSuffixMods.Count)
-                    RankExplanation.Remove(strID & strName)
+                    'RankExplanation.Remove(strID & strName)
                     EvaluateExplicitMods(lstMods, intModCount, strID, strName, newfullitem, lstTempInventory, True)   ' Call ourselves again, this time with the forcefullsearch boolean set to true
                     Exit Sub
                 End If
-                newfullitem.Rank = sngRank
+                'newfullitem.Rank = sngRank
                 newfullitem.Percentile = CSng(CalculatePercentile(newfullitem).ToString("0.0"))
                 Exit Sub
             End If
@@ -1073,8 +1174,8 @@ AddMod:
             sb.Append(vbCrLf & String.Format("{0:'+'0;'-'0}", newMod.Weight * 10) & vbTab & "(mod weight * 10) = (" & newMod.Weight & " * 10) = " & newMod.Weight * 10)
 
             ' Set the modlevelactual and modlevelmax for this mod
-            newMod.ModLevelActual = CInt(GetNumeric(strKey))
-            newMod.ModLevelMax = intMaxIndex
+            'newMod.ModLevelActual = CInt(GetNumeric(strKey))
+            'newMod.ModLevelMax = intMaxIndex
 
             If newMod.Weight < 0 Then GoTo AddExplanationGoto
 
@@ -1307,8 +1408,8 @@ AddExplanationGoto:
                         End If
                     Next
                     If blmatch = True Then
-                        Dim sngRank As Single = 0
-                        Dim strRankExplanationKey As String = strID & strName & lstTempInventory.Count
+                        'Dim sngRank As Single = 0
+                        'Dim strRankExplanationKey As String = strID & strName & lstTempInventory.Count
                         For j = 0 To ModList.Count - 1
                             If curpos(j) = -1 Then Continue For ' If position is -1, this mod position in ModList will not be used
                             Dim newMod As New FullMod, strAffix As String = ""
@@ -1338,9 +1439,13 @@ AddExplanationGoto:
                                     newMod.Value1 = GetNumeric(strMod)
                                     If GetNumeric(strMod) > CSng(ModStatsList(strKey)("MaxV").ToString) And blAllowLegacy = True Then
                                         newMod.UnknownValues = True ' This might be a legacy mod that's outside of the ranges in mods.csv
-                                        strAffix = RunModResultQuery(newFullItem, , ModList(j)("Description").ToString)(0)("Prefix/Suffix").ToString
-                                        Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower & ModList(j)("ExportField2").ToString.ToLower))("MaxV"))
-                                        sngRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), strID, strName, strAffix, strRankExplanationKey)
+                                        If GetChars(strMod).ToLower = "% increased rarity of items found" Then ' Can't use the description field to run ModResultQuery, set affix manually - fix bug 11 
+                                            strAffix = ModList(j)("Description").ToString.Split(CChar(","))(1)
+                                        Else
+                                            strAffix = RunModResultQuery(newFullItem, , ModList(j)("Description").ToString)(0)("Prefix/Suffix").ToString
+                                        End If
+                                        'Dim sngMaxV As Single = CSng(ModStatsList(newMod.Type1.ToLower & MaxIndex(newMod.Type1.ToLower & ModList(j)("ExportField2").ToString.ToLower))("MaxV"))
+                                        'sngRank += RankUnknownValueMod(newMod, sngMaxV, MaxIndex(strMaxIndexKey), strID, strName, strAffix, strRankExplanationKey)
                                         ' Don't jump ahead just yet, we might have an ExportField2 to set
                                     End If
                                 End If
@@ -1379,10 +1484,12 @@ AddExplanationGoto:
                             End If
                             newMod.MiniLvl = CSng(ModStatsList(strKey)("Level").ToString)
                             strAffix = ModStatsList(strKey)("Prefix/Suffix").ToString
-                            sngRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, strID, strName, strAffix, strRankExplanationKey)
-                            Dim sb As New System.Text.StringBuilder
-                            sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ")  (running total)" & vbCrLf)
-                            RankExplanation(strRankExplanationKey) += vbCrLf & sb.ToString
+                            newMod.ModLevelActual = CInt(GetNumeric(strKey))
+                            newMod.ModLevelMax = MaxIndex(strMaxIndexKey)
+                            'sngRank += CalculateRank(newMod, MaxIndex(strMaxIndexKey), strKey, strID, strName, strAffix, strRankExplanationKey)
+                            'Dim sb As New System.Text.StringBuilder
+                            'sb.Append(vbCrLf & "(" & String.Format("{0:'+'0;'-'0}", sngRank) & ")  (running total)" & vbCrLf)
+                            'RankExplanation(strRankExplanationKey) += vbCrLf & sb.ToString
 
 AddMod2:
                             If strAffix = "Prefix" Then
@@ -1396,12 +1503,12 @@ AddMod2:
                             newFullItem.ExplicitPrefixMods.RemoveRange(0, newFullItem.ExplicitPrefixMods.Count) ' Remove any mod list changes we might have made
                             newFullItem.ExplicitSuffixMods.RemoveRange(0, newFullItem.ExplicitSuffixMods.Count)
                             ' We'll have added stuff to the rankexplanation dictionary, so clean the entry associated with this item
-                            RankExplanation.Remove(strRankExplanationKey)
+                            'RankExplanation.Remove(strRankExplanationKey)
                             Continue For
                         End If
-                        newFullItem.Rank = sngRank
+                        'newFullItem.Rank = sngRank
                         newFullItem.Percentile = CSng(CalculatePercentile(newFullItem).ToString("0.0"))
-                        RankExplanation(strRankExplanationKey) = RankExplanation(strRankExplanationKey).Substring(0, RankExplanation(strRankExplanationKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
+                        'RankExplanation(strRankExplanationKey) = RankExplanation(strRankExplanationKey).Substring(0, RankExplanation(strRankExplanationKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
                         If lstTempInventory.IndexOf(newFullItem) = -1 Then
                             Dim tmpItem As FullItem = CType(newFullItem.Clone, FullItem)
                             lstTempInventory.Add(tmpItem)
@@ -1639,8 +1746,14 @@ AddMod2:
         If e.ColumnIndex = DataGridView1.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
             If FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then AddGemWarning(sb)
+            Dim strKey As String = DataGridView1.CurrentRow.Cells("ID").Value.ToString & DataGridView1.CurrentRow.Cells("Name").Value.ToString
+            If RankExplanation.ContainsKey(strKey) = False Then
+                MessageBox.Show("Could not find explanation for this rank. Please report this to:" & Environment.NewLine & Environment.NewLine & _
+                                    "https://github.com/RoryTate/modrank/issues", "Key Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Exit Sub
+            End If
             sb.Append(RankExplanation(DataGridView1.CurrentRow.Cells("ID").Value.ToString & DataGridView1.CurrentRow.Cells("Name").Value.ToString))
-            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value.ToString)
+            MessageBox.Show(sb.ToString, "Item Mod Rank Explanation - " & DataGridView1.CurrentRow.Cells("Name").Value.ToString, MessageBoxButtons.OK, MessageBoxIcon.Information)
         ElseIf e.ColumnIndex = DataGridView1.Columns("*").Index AndAlso DataGridView1.CurrentRow.Cells("*").Value.ToString = "*" Then
             If Application.OpenForms().OfType(Of frmResults).Any = False Then frmResults.Show(Me)
             frmResults.Text = "Possible Mod Solutions for '" & DataGridView1.CurrentRow.Cells("Name").Value.ToString & "'"
@@ -1805,7 +1918,7 @@ AddMod2:
         lstMods.Sort()
         For Each strMod In lstMods
             For Each m As FullMod In myMod
-                If m.Type1 & IIf(m.Type2 = "", "", "/" & m.Type2) = strMod Then
+                If (m.Type1 & IIf(m.Type2 = "", "", "/" & m.Type2)).ToString.ToLower = strMod.ToLower Then
                     sb.Append("(*) ")
                     Exit For
                 End If
@@ -2042,25 +2155,31 @@ AddMod2:
         lblpb.Visible = True
     End Sub
 
-    Public Sub RecalculateAllRankings()
+    Public Sub RecalculateAllRankings(Optional blPartialRefresh As Boolean = False, Optional blShowPB As Boolean = True, Optional blSkipStore As Boolean = False, Optional blSkipStash As Boolean = False)
         Try
             ' Full speed ahead with the full recalculating!
-            Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {FullInventory.Count + TempInventory.Count + FullStoreInventory.Count + TempStoreInventory.Count, "Please wait, recalculating..."})
-            EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
+            Dim intTotal As Integer = IIf(blSkipStash = False, FullInventory.Count + TempInventory.Count, 0) + IIf(blSkipStore = False, FullStoreInventory.Count + TempStoreInventory.Count, 0)
+            If blShowPB = True Then Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {intTotal, "Please wait, calculating rankings..."})
+            If blPartialRefresh = False Then EnableDisableControls(False, New List(Of String)(New String() {"pb", "lblpb", "grpProgress"}))
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {cmbWeight, "Enabled", False})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {lblWeights, "Enabled", False})
             'Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {btnEditWeights, "Enabled", False})
             Dim blFilter As Boolean = strFilter <> ""
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", False})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", ""})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", ""})
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", True})
-            Application.DoEvents()
+            If blPartialRefresh = False Then
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", False})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "DataSource", ""})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "Visible", False})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", ""})
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {Me, "UseWaitCursor", True})
+                Application.DoEvents()
+            End If
+
             Dim lngCounter As Long = 0
             For Each mylist In {FullInventory, TempInventory, FullStoreInventory, TempStoreInventory}
                 Dim strList As String = ""
                 If mylist.Equals(FullInventory) Or mylist.Equals(FullStoreInventory) Then strList = "Full" Else strList = "Temp"
+                If blSkipStash = True AndAlso (mylist.Equals(FullInventory) Or mylist.Equals(TempInventory)) Then Continue For
+                If blSkipStore = True AndAlso (mylist.Equals(FullStoreInventory) Or mylist.Equals(TempStoreInventory)) Then Continue For
                 For Each it In mylist
                     it.Rank = 0
                     Dim strRankKey As String = IIf(strList = "Full", it.ID & it.Name, it.ID & it.Name & mylist.IndexOf(it)).ToString
@@ -2094,12 +2213,15 @@ AddMod2:
                     If RankExplanation(strRankKey).LastIndexOf("(running total)") <> -1 Then _
                         RankExplanation(strRankKey) = RankExplanation(strRankKey).Substring(0, RankExplanation(strRankKey).LastIndexOf("(running total)")) & "Final Rank" & vbCrLf
                     lngCounter += 1
-                    If lngCounter Mod 10 = 0 Then
+                    If lngCounter Mod 10 = 0 And blShowPB Then
                         Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
+                    ElseIf lngCounter Mod 100 = 0 And blShowPB = False Then
+                        statusController.DisplayMessage("Ranked " & lngCounter & " item entries...")
                     End If
                 Next
             Next
             Application.DoEvents()
+            If blPartialRefresh Then Exit Sub
             dtRank.Clear() : dtOverflow.Clear() : dtStore.Clear() : dtStoreOverflow.Clear()
 
             If FullInventory.Count <> 0 Then
@@ -2117,7 +2239,7 @@ AddMod2:
                 Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "FirstDisplayedCell", FirstCell})
                 Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1, "Visible", True})
             End If
-            
+
             If FullStoreInventory.Count <> 0 Then
                 AddToDataTable(FullStoreInventory, dtStore, False, "")
                 AddToDataTable(TempStoreInventory, dtStoreOverflow, False, "")
@@ -2366,8 +2488,10 @@ AddMod2:
                 response = DirectCast(request.GetResponse(), HttpWebResponse)
                 sr = New StreamReader(response.GetResponseStream())
                 Dim strLines As String = sr.ReadToEnd()
+                sr.Close()
                 If strLines = "[]" Then Exit For
                 Dim jss As New System.Web.Script.Serialization.JavaScriptSerializer()
+                jss.MaxJsonLength = Int32.MaxValue
                 Dim store As List(Of JSON_Store) = jss.Deserialize(Of List(Of JSON_Store))(strLines)
                 If store.Count = 0 Then Exit For
                 storeMerge.AddRange(store)
@@ -2394,7 +2518,7 @@ AddMod2:
                 Exit Sub
             End If
             Dim storeQuery As IEnumerable(Of JSON_Store) = storeMerge.Where(Function(Item) Item.Rarity_Name = "Rare" AndAlso Item.Name.ToLower <> "" _
-                                                AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False)
+                                                AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False And Item.Identified = True)
             If storeQuery.Count = 0 Then
                 If FullInventory.Count <> 0 Then
                     EnableDisableControls(True, New List(Of String)(New String() {"ElementHost2", "txtEmail", "lblEmail", "ElementHost1", "lblPassword", "btnLoad", "btnOffline", "chkSession"}))
@@ -2428,8 +2552,14 @@ AddMod2:
         If e.ColumnIndex = DataGridView2.Columns("Rank").Index Then
             Dim sb As New System.Text.StringBuilder
             If FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).LevelGem = True Then AddGemWarning(sb)
-            sb.Append(RankExplanation(DataGridView2.CurrentRow.Cells("ID").Value.ToString & DataGridView2.CurrentRow.Cells("Name").Value.ToString))
-            MsgBox(sb.ToString, , "Item Mod Rank Explanation - " & DataGridView2.CurrentRow.Cells("Name").Value.ToString)
+            Dim strKey As String = DataGridView2.CurrentRow.Cells("ID").Value.ToString & DataGridView2.CurrentRow.Cells("Name").Value.ToString
+            If RankExplanation.ContainsKey(strKey) = False Then
+                MessageBox.Show("Could not find explanation for this rank. Please report this to:" & Environment.NewLine & Environment.NewLine & _
+                                    "https://github.com/RoryTate/modrank/issues", "Key Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Exit Sub
+            End If
+            sb.Append(RankExplanation(strKey))
+            MessageBox.Show(sb.ToString, "Item Mod Rank Explanation - " & DataGridView2.CurrentRow.Cells("Name").Value.ToString, MessageBoxButtons.OK, MessageBoxIcon.Information)
         ElseIf e.ColumnIndex = DataGridView2.Columns("*").Index AndAlso DataGridView2.CurrentRow.Cells("*").Value.ToString = "*" Then
             If Application.OpenForms().OfType(Of frmResults).Any = False Then frmResults.Show(Me)
             frmResults.Text = "Possible Mod Solutions for '" & DataGridView2.CurrentRow.Cells("Name").Value.ToString & "'"
@@ -2576,15 +2706,17 @@ AddMod2:
                 If System.IO.Path.GetExtension(file).ToLower = ".json" Then
                     sr = New StreamReader(file)
                     Dim strLines As String = sr.ReadToEnd()
+                    sr.Close()
                     If strLines = "[]" Then Exit For
                     Dim jss As New System.Web.Script.Serialization.JavaScriptSerializer()
+                    jss.MaxJsonLength = Int32.MaxValue
                     Dim store As List(Of JSON_Store) = jss.Deserialize(Of List(Of JSON_Store))(strLines)
                     If store.Count = 0 Then Exit For
                     storeMerge.AddRange(store)
                 End If
             Next
             Dim storeQuery As IEnumerable(Of JSON_Store) = storeMerge.Where(Function(Item) Item.Rarity_Name = "Rare" AndAlso Item.Name.ToLower <> "" _
-                                                   AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False)
+                                                   AndAlso Item.Item_Type.ToLower.Contains("map") = False AndAlso Item.Item_Type.ToLower.Contains("peninsula") = False And Item.Identified = True)
             If storeQuery.Count = 0 Then
                 Me.Invoke(New MyDelegate(AddressOf PBClose))
                 MessageBox.Show("No items found", "No Items Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -2620,8 +2752,20 @@ AddMod2:
                 For i = FullStoreInventory.Count - 1 To 0 Step -1
                     If FullStoreInventory(i).ThreadID = strThreadID Then FullStoreInventory.RemoveAt(i)
                 Next
+                For i = TempStoreInventory.Count - 1 To 0 Step -1
+                    If TempStoreInventory(i).ThreadID = strThreadID Then TempStoreInventory.RemoveAt(i)
+                Next
             End If
             Dim lngCounter As Long = 0
+
+            FullStoreInventoryCache.Clear() : TempStoreInventoryCache.Clear()
+            Dim strCache As String = Application.StartupPath & "\Store\fsinv.cache"
+            If blOffline And File.Exists(strCache) Then LoadCache(FullStoreInventory, strCache) Else LoadCache(FullStoreInventoryCache, strCache)
+            strCache = Application.StartupPath & "\Store\tsinv.cache"
+            If blOffline And File.Exists(strCache) Then LoadCache(TempStoreInventory, strCache) Else LoadCache(TempStoreInventoryCache, strCache)
+
+            If blOffline And File.Exists(Application.StartupPath & "\Store\fsinv.cache") Then GoTo DataTableLoad
+
             'Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
             For Each storeItem As JSON_Store In storeQuery
                 'MessageBox.Show("Name: " & storeItem.Name & Environment.NewLine & "Mod Count: " & storeItem.Stats.Count)
@@ -2681,6 +2825,7 @@ AddMod2:
                 storeFullItem.League = StrConv(storeItem.League_Name, vbProperCase)
                 storeFullItem.Location = storeItem.Account
                 storeFullItem.Rarity = Rarity.Rare
+                storeFullItem.Corrupted = storeItem.Corrupted
                 storeFullItem.Price = storeItem.Price
                 storeFullItem.ThreadID = storeItem.Thread_ID
                 Dim queryImp As IEnumerable(Of Stats) = storeItem.Stats.Where(Function(s) s.Hidden = False And s.Implicit = True)
@@ -2702,6 +2847,72 @@ AddMod2:
                 For Each Stat In query
                     lstStr.Add(Stat.Name)
                 Next
+                Dim blIndexed As Boolean = False
+                If FullStoreInventoryCache.Count <> 0 Then
+                    Dim q As IEnumerable(Of FullItem) = FullStoreInventoryCache.Where(Function(s) s.ID = storeItem.ID And s.ThreadID = storeItem.Thread_ID And s.Name = storeItem.Name)
+                    If q.Count <> 0 Then
+                        Dim testMod As New CloneableList(Of FullMod)
+                        For Each m As CloneableList(Of FullMod) In {q(0).ExplicitPrefixMods, q(0).ExplicitSuffixMods}
+                            For Each myMod As FullMod In m
+                                Dim newMod As New FullMod
+                                Dim qry As IEnumerable(Of FullMod) = testMod.Where(Function(x) x.Type1 = myMod.Type1)
+                                If qry.Count = 0 Then
+                                    newMod.Type1 = myMod.Type1
+                                    newMod.Value1 = myMod.Value1
+                                    newMod.MaxValue1 = myMod.MaxValue1
+                                    testMod.Add(newMod)
+                                Else
+                                    testMod(testMod.IndexOf(qry(0))).Value1 += myMod.Value1
+                                End If
+                                If myMod.Type2 <> "" Then
+                                    Dim newMod2 As New FullMod
+                                    qry = testMod.Where(Function(x) x.Type1 = myMod.Type2)
+                                    If qry.Count = 0 Then
+                                        newMod2.Type1 = myMod.Type2
+                                        newMod2.Value1 = myMod.Value2
+                                        testMod.Add(newMod2)
+                                    Else
+                                        testMod(testMod.IndexOf(qry(0))).Value1 += myMod.Value2
+                                    End If
+                                End If
+                            Next
+                        Next
+                        For Each m As Stats In storeItem.Stats.Where(Function(s) s.Hidden = False And s.Implicit = False)
+                            Dim strName As String = GetChars(m.Name)
+                            Dim sngValue As Single = GetNumeric(m.Name)
+                            Dim qry As IEnumerable(Of FullMod) = testMod.Where(Function(x) x.Type1 = strName)
+                            If qry.Count = 0 Then
+                                GoTo IndexMod
+                            Else
+                                If testMod(testMod.IndexOf(qry(0))).Value1 <> sngValue Then
+                                    If m.Name.Contains("-") Then
+                                        If testMod(testMod.IndexOf(qry(0))).Value1 <> GetNumeric(m.Name, 0, m.Name.IndexOf("-", StringComparison.OrdinalIgnoreCase)) Then GoTo IndexMod
+                                        If testMod(testMod.IndexOf(qry(0))).MaxValue1 <> GetNumeric(m.Name, m.Name.IndexOf("-", StringComparison.OrdinalIgnoreCase), m.Name.Length) Then GoTo IndexMod
+                                    Else
+                                        GoTo IndexMod
+                                    End If
+                                End If
+                            End If
+                        Next
+                        storeFullItem.Rank = q(0).Rank
+                        storeFullItem.Percentile = q(0).Percentile
+                        storeFullItem.ExplicitPrefixMods = q(0).ExplicitPrefixMods.Clone
+                        storeFullItem.ExplicitSuffixMods = q(0).ExplicitSuffixMods.Clone
+                        storeFullItem.OtherSolutions = q(0).OtherSolutions
+                        FullStoreInventory.Add(storeFullItem)
+                        If storeFullItem.OtherSolutions = True Then
+                            Dim q2 As IEnumerable(Of FullItem) = TempStoreInventoryCache.Where(Function(s) s.ID = storeItem.ID And s.ThreadID = storeItem.Thread_ID And s.Name = storeItem.Name)
+                            For Each qItem In q2
+                                Dim tmpItem As FullItem = CType(qItem.Clone, FullItem)
+                                TempStoreInventory.Add(tmpItem)
+                            Next
+                            lngStoreCount = TempStoreInventory.Count
+                        End If
+                        blIndexed = True
+                    End If
+                End If
+                If blIndexed = True Then GoTo IncrementProgressBar
+IndexMod:
                 ' Make sure that increased item rarity comes last, since it can be either a prefix or a suffix
                 ReorderExplicitMods(lstStr, lstStr.Count)
                 blAddedOne = False
@@ -2719,13 +2930,13 @@ AddMod2:
                     End If
                     If blAddedOne = True Then
                         ' Check if we've already added this rankexplanation key to the dictionary
-                        If RankExplanation.ContainsKey(storeItem.ID.ToString & storeItem.Name) = True Then
-                            RankExplanation(storeItem.ID.ToString & storeItem.Name) = RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
-                        Else
-                            ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
-                            RankExplanation.Add(storeItem.ID.ToString & storeItem.Name, RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1))
-                        End If
-                        RankExplanation.Remove(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
+                        'If RankExplanation.ContainsKey(storeItem.ID.ToString & storeItem.Name) = True Then
+                        '    RankExplanation(storeItem.ID.ToString & storeItem.Name) = RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
+                        'Else
+                        '    ' First rename the associated entry in the RankExplanation dictionary...(have to add it in with the proper name and then remove the old one)
+                        '    RankExplanation.Add(storeItem.ID.ToString & storeItem.Name, RankExplanation(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1))
+                        'End If
+                        'RankExplanation.Remove(storeItem.ID.ToString & storeItem.Name & TempStoreInventory.Count - 1)
                         FullStoreInventory.Add(TempStoreInventory(TempStoreInventory.Count - 1).Clone)
                         TempStoreInventory.RemoveAt(TempStoreInventory.Count - 1)
                         If lngStoreCount < TempStoreInventory.Count Then
@@ -2736,17 +2947,31 @@ AddMod2:
                         FullStoreInventory.Add(storeFullItem)
                     End If
                 End If
+IncrementProgressBar:
                 lngCounter += 1
                 If lngCounter Mod 10 = 0 Then
                     Me.Invoke(New MyDelegate(AddressOf PBPerformStep))
                 End If
             Next
+
+DataTableLoad:
+            RecalculateAllRankings(True, , , True)
             If dtStore.Rows.Count > 0 Then dtStore.Clear()
             If dtStoreOverflow.Rows.Count > 0 Then dtStoreOverflow.Clear()
             Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {FullStoreInventory.Count, "Adding Store inventories to datatable"})
             AddToDataTable(FullStoreInventory, dtStore, False, "")
+            strCache = Application.StartupPath & "\Store\fsinv.cache"
+            If blOffline = False Or File.Exists(strCache) = False Then
+                WriteCache(FullStoreInventory, strCache)
+            End If
+
             Me.Invoke(New pbSetDefaults(AddressOf SetPBDefaults), New Object() {TempStoreInventory.Count, "Adding Store overflow inventories to datatable"})
             AddToDataTable(TempStoreInventory, dtStoreOverflow, False, "")
+            ' Write the TempStoreInventory into the tsinv.cache file as a serialized JSON
+            strCache = Application.StartupPath & "\Store\tsinv.cache"
+            If blOffline = False Or File.Exists(strCache) = False Then
+                WriteCache(TempStoreInventory, strCache)
+            End If
 
             Me.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView2, "DataSource", dtStore})
             Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView2})
@@ -2847,5 +3072,24 @@ AddMod2:
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
+    End Sub
+
+    Public Sub LoadCache(ByRef lstInv As List(Of FullItem), strCache As String)
+        If File.Exists(strCache) Then   ' If we have a cache, load it to speed up mod indexing
+            Dim sr As StreamReader = New StreamReader(strCache)
+            Dim strLines As String = sr.ReadToEnd()
+            sr.Close()
+            Dim jssTemp As New System.Web.Script.Serialization.JavaScriptSerializer()
+            jssTemp.MaxJsonLength = Int32.MaxValue
+            lstInv = jssTemp.Deserialize(Of List(Of FullItem))(strLines)
+        End If
+    End Sub
+
+    Public Sub WriteCache(ByRef lstInv As List(Of FullItem), strCache As String)
+        ' Write the FullStoreInventory into the fsinv.cache file as a serialized JSON
+        If File.Exists(strCache) Then File.Delete(strCache)
+        Dim jss As New System.Web.Script.Serialization.JavaScriptSerializer()
+        jss.MaxJsonLength = Int32.MaxValue
+        System.IO.File.WriteAllText(strCache, jss.Serialize(lstInv))
     End Sub
 End Class

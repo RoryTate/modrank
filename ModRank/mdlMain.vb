@@ -20,8 +20,14 @@ Module mdlMain
     Public FullInventory As New List(Of FullItem)
     Public TempInventory As New List(Of FullItem)
 
+    Public FullInventoryCache As New List(Of FullItem)
+    Public TempInventoryCache As New List(Of FullItem)
+
     Public FullStoreInventory As New List(Of FullItem)
     Public TempStoreInventory As New List(Of FullItem)
+
+    Public FullStoreInventoryCache As New List(Of FullItem)
+    Public TempStoreInventoryCache As New List(Of FullItem)
 
     ' RCPD = Read Control Property Delegate (used a lot so abbreviated)
     Public Delegate Function RCPD(ByVal MyControl As Object, ByVal MyProperty As Object) As String

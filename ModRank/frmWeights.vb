@@ -22,6 +22,8 @@
             dgWeights.Columns(3).ReadOnly = True
             dgWeights.Columns(3).Width = 200
 
+            txtFilter_TextChanged(txtFilter, EventArgs.Empty)
+
             dgWeights.Focus()
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
@@ -69,6 +71,21 @@
         If Not IsNumeric(dgWeights.Rows(e.RowIndex).Cells(e.ColumnIndex).Value) Then
             MsgBox("You must enter a numeric value for a weight.", MsgBoxStyle.Critical, "Invalid Input")
             dgWeights.Rows(e.RowIndex).Cells(e.ColumnIndex).Value = 0
+        End If
+    End Sub
+
+    Private Sub txtFilter_TextChanged(sender As Object, e As EventArgs) Handles txtFilter.TextChanged
+        If txtFilter.Text.Trim <> "" Then
+            Dim strFilter As String = txtFilter.Text.Trim.Replace("%", "[%]")
+            Dim dv As DataView = New DataView(dtTemp)
+            If IsNumeric(strFilter) Then
+                dv.RowFilter = "Weight=" & strFilter
+            Else
+                dv.RowFilter = "Description Like '%" & strFilter & "%' OR ExportField Like '%" & strFilter & "%' OR ExportField2 Like '%" & strFilter & "%'"
+            End If
+            dgWeights.DataSource = dv
+        Else
+            dgWeights.DataSource = dtTemp
         End If
     End Sub
 End Class
