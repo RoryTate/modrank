@@ -37,11 +37,14 @@ Public Class frmResults
             Me.Invoke(New MyDualControlDelegate(AddressOf HideColumns), New Object() {Me, DataGridView1})
             Me.DataGridView1.Columns("%").DefaultCellStyle.Format = "n1"
             SetDataGridViewWidths(DataGridView1)
-            ' To make room for new Price column take away from SubType and Implicit columns
-            Dim intWidth As Integer = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns("SubType"), "Width"}), Integer) - 15, 0)
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("SubType"), "Width", intWidth})
-            intWidth = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns("Implicit"), "Width"}), Integer) - 35, 0)
-            Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Implicit"), "Width", intWidth})
+            If frmMain.TabControl1.SelectedTab.Name = "TabPage2" Then
+                ' To make room for new Price column take away from SubType and Implicit columns
+                Dim intWidth As Integer = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns("SubType"), "Width"}), Integer) - 15, 0)
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("SubType"), "Width", intWidth})
+                intWidth = Math.Max(CType(Me.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {DataGridView1.Columns("Implicit"), "Width"}), Integer) - 35, 0)
+                Me.Invoke(New UCPD(AddressOf SetControlProperty), New Object() {DataGridView1.Columns("Implicit"), "Width", intWidth})
+            End If
+            
         Catch ex As Exception
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try

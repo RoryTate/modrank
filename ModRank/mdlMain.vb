@@ -67,8 +67,9 @@ Module mdlMain
         bytColumns = CByte(frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Columns, "Count"}).ToString)
         Dim strParentName As String = frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {dg.Parent, "Name"}).ToString.ToLower
         Dim strFormName As String = frm.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {frm, "Text"}).ToString
+        Dim strTabName As String = frmMain.Invoke(New RCPD(AddressOf ReadControlProperty), New Object() {frmMain.TabControl1.SelectedTab, "Name"}).ToString.ToLower
         For i = bytDisplay To bytColumns - 1
-            If (strParentName = "tabpage2" Or strFormName.Contains("ModRank") = False) And i = bytDisplay Then Continue For
+            If (strParentName = "tabpage2" Or strTabName = "tabpage2") And i = bytDisplay Then Continue For
             frm.BeginInvoke(New UCPD(AddressOf SetControlProperty), New Object() {dg.Columns(i), "Visible", False})
         Next
     End Sub
