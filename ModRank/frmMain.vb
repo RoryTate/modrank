@@ -289,6 +289,7 @@ Public Class frmMain
             dtRank.Columns.Add("iv3", GetType(Single))
             dtRank.Columns.Add("iv3m", GetType(Single))
             dtRank.Columns.Add("icount", GetType(Byte))
+            dtRank.Columns.Add("CraftedMods", GetType(String))
             dtRank.Columns.Add("ThreadID", GetType(String))
             dtRank.Columns.Add("Index", GetType(Long))
             dtRank.Columns.Add("ID", GetType(String))
@@ -524,7 +525,7 @@ Public Class frmMain
             If blOffline And File.Exists(strCache) Then LoadCache(FullInventory, strCache) Else LoadCache(FullInventoryCache, strCache)
             strCache = Application.StartupPath & "\tsinv.cache"
             If blOffline And File.Exists(strCache) Then LoadCache(TempInventory, strCache) Else LoadCache(TempInventoryCache, strCache)
-            
+
             If blOffline And File.Exists(Application.StartupPath & "\fsinv.cache") Then GoTo DataTableLoad
 
             Dim lngCount As Long = 0    ' Counter to keep track of where we are in temporary inventory additions (used by complex search algorithm)
@@ -753,9 +754,19 @@ DataTableLoad:
                 For i = 0 To myGear.Requirements.Count - 1
                     If myGear.Requirements(i).Name.ToLower = "level" Then
                         newFullItem.Level = CByte(GetNumeric(myGear.Requirements(i).Value))
-                        newFullItem.LevelGem = myGear.Requirements(i).Value.IndexOf("gem", StringComparison.OrdinalIgnoreCase) > -1
                         Exit For ' We don't care about any other requirements, so exit the loop
                     End If
+                Next
+                For i = 0 To myGear.SocketedItems.Count - 1
+                    For j = 0 To myGear.SocketedItems(i).Requirements.Count - 1
+                        If myGear.SocketedItems(i).Requirements(j).Name.ToLower = "level" Then
+                            If CByte(GetNumeric(myGear.SocketedItems(i).Requirements(j).Value)) = newFullItem.Level Then
+                                newFullItem.LevelGem = True
+                                Exit For
+                            End If
+                        End If
+                    Next
+                    If newFullItem.LevelGem = True Then Exit For
                 Next
                 If Not IsNothing(myGear.Properties) Then
                     For i = 0 To myGear.Properties.Count - 1
@@ -803,6 +814,21 @@ DataTableLoad:
                         End If
                         newFullMod.Type1 = GetChars(myGear.Implicitmods(i))
                         newFullItem.ImplicitMods.Add(newFullMod)
+                    Next
+                End If
+                If Not IsNothing(myGear.Craftedmods) Then
+                    Dim result As DataRow(), result2 As DataRow()
+                    For i = 0 To myGear.Craftedmods.Count - 1
+                        Dim newFullMod As New FullMod
+                        newFullMod.FullText = myGear.Craftedmods(i)
+                        If myGear.Craftedmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase) > -1 Then
+                            newFullMod.Value1 = GetNumeric(myGear.Craftedmods(i), 0, myGear.Craftedmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase))
+                            newFullMod.MaxValue1 = GetNumeric(myGear.Craftedmods(i), myGear.Craftedmods(i).IndexOf("-", StringComparison.OrdinalIgnoreCase), myGear.Craftedmods(i).Length)
+                        Else
+                            newFullMod.Value1 = GetNumeric(myGear.Craftedmods(i))
+                        End If
+                        newFullMod.Type1 = GetChars(myGear.Craftedmods(i))  ' Crafted mods that are combined mods (i.e. physical damage/accuracy) don't get stored that way...unfortunately
+                        newFullItem.CraftedMods.Add(newFullMod)
                     Next
                 End If
                 Dim blIndexed As Boolean = False
@@ -1644,8 +1670,8 @@ AddMod2:
                         intPCount += 1
                     Next
                     For i = it.ExplicitPrefixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
-                        row("Prefix " & i + 1) = ""
-                        row("pft" & i + 1) = ""
+                        row("Prefix " & i + 1) = IIf(it.CraftedMods.Count > 0, "Crafted?", "")
+                        row("pft" & i + 1) = IIf(it.CraftedMods.Count > 0, "Crafted?", "")
                         row("pt" & i + 1) = ""
                         row("pt" & i + 1 & "2") = ""
                         row("pv" & i + 1) = 0
@@ -1666,8 +1692,8 @@ AddMod2:
                         intSCount += 1
                     Next
                     For i = it.ExplicitSuffixMods.Count To 2    ' Make the other fields non-null, so that searches/filters can do proper comparisons
-                        row("Suffix " & i + 1) = ""
-                        row("sft" & i + 1) = ""
+                        row("Suffix " & i + 1) = IIf(it.CraftedMods.Count > 0, "Crafted?", "")
+                        row("sft" & i + 1) = IIf(it.CraftedMods.Count > 0, "Crafted?", "")
                         row("st" & i + 1) = ""
                         row("st" & i + 1 & "2") = ""
                         row("sv" & i + 1) = 0
@@ -1693,6 +1719,12 @@ AddMod2:
                     row("Implicit") = row("Implicit").ToString.Substring(0, Math.Max(2, row("Implicit").ToString.Length) - 2)
                 End If
                 row("icount") = intICount
+                If it.CraftedMods Is Nothing = False Then
+                    For i = 0 To it.CraftedMods.Count - 1
+                        row("CraftedMods") = row("CraftedMods").ToString & it.CraftedMods(i).FullText & vbCrLf
+                    Next
+                    row("CraftedMods") = row("CraftedMods").ToString.Substring(0, Math.Max(1, row("CraftedMods").ToString.Length) - 1)
+                End If
                 row("Qal") = it.Quality
                 row("*") = If(it.OtherSolutions, "*", "")
                 row("Crpt") = it.Corrupted
@@ -1762,14 +1794,16 @@ AddMod2:
             tmpList.Add(DataGridView1.CurrentRow.Cells("ID").Value.ToString)
             tmpList.Add(DataGridView1.CurrentRow.Cells("Name").Value.ToString)
             frmResults.MyData = tmpList
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowModInfo(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView1.Columns(e.ColumnIndex).Name)) - 1, e)
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowAllPossibleMods(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
-        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+        ElseIf DataGridView1.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowAllPossibleMods(DataGridView1, FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)), FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
+        ElseIf NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "Crafted?" Then
+            MessageBox.Show(DataGridView1.Rows(e.RowIndex).Cells("CraftedMods").Value, "Crafted Mods on this item")
         ElseIf e.ColumnIndex = DataGridView1.Columns("Location").Index Then
             frmLocation.X = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).X
             frmLocation.Y = FullInventory(CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)).Y
@@ -1964,9 +1998,15 @@ AddMod2:
         Dim strName As String = DataGridView1.Columns(e.ColumnIndex).Name.ToLower
         Dim intIndex As Integer = CInt(DataGridView1.Rows(e.RowIndex).Cells("Index").Value)
         If strName.Contains("prefix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
-            DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+            If DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value <> "Crafted?" Then
+                DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+            End If
         ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
-            DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+            If DataGridView1.Rows(e.RowIndex).Cells(e.ColumnIndex).Value <> "Crafted?" Then
+                DataGridViewAddLevelBar(DataGridView1, FullInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+            End If
+        ElseIf strName = "subtype" Then
+            DataGridViewArmorTypeBGColor(DataGridView1, FullInventory(intIndex), strName, sender, e)
         End If
     End Sub
 
@@ -2048,6 +2088,49 @@ AddMod2:
             ErrorHandler(System.Reflection.MethodBase.GetCurrentMethod.Name, ex)
         End Try
     End Sub
+
+    Public Sub DataGridViewArmorTypeBGColor(dg As DataGridView, MyItem As FullItem, strName As String, sender As Object, e As DataGridViewCellPaintingEventArgs)
+        Dim blDraw As Boolean = False
+        Dim br As New SolidBrush(Color.White), br2 As New SolidBrush(Color.White)
+        If MyItem.Arm > 0 And MyItem.Eva > 0 And MyItem.ES = 0 Then
+            br = New SolidBrush(Color.Tomato)
+            br2 = New SolidBrush(Color.LimeGreen)
+            blDraw = True
+        ElseIf MyItem.Arm > 0 And MyItem.Eva = 0 And MyItem.ES > 0 Then
+            br = New SolidBrush(Color.Tomato)
+            br2 = New SolidBrush(Color.CornflowerBlue)
+            blDraw = True
+        ElseIf MyItem.Arm = 0 And MyItem.Eva > 0 And MyItem.ES > 0 Then
+            br = New SolidBrush(Color.LimeGreen)
+            br2 = New SolidBrush(Color.CornflowerBlue)
+            blDraw = True
+        ElseIf MyItem.Arm > 0 And MyItem.Eva = 0 And MyItem.ES = 0 Then
+            br = New SolidBrush(Color.Tomato)
+            br2 = New SolidBrush(Color.Tomato)
+            blDraw = True
+        ElseIf MyItem.Eva > 0 And MyItem.Arm = 0 And MyItem.ES = 0 Then
+            br = New SolidBrush(Color.LimeGreen)
+            br2 = New SolidBrush(Color.LimeGreen)
+            blDraw = True
+        ElseIf MyItem.ES > 0 And MyItem.Eva = 0 And MyItem.Arm = 0 Then
+            br = New SolidBrush(Color.CornflowerBlue)
+            br2 = New SolidBrush(Color.CornflowerBlue)
+            blDraw = True
+        End If
+        If blDraw = True Then
+            Dim point1 As New Point(e.CellBounds.X, e.CellBounds.Y)
+            Dim point2 As New Point(e.CellBounds.X, e.CellBounds.Y + e.CellBounds.Height)
+            Dim point3 As New Point(e.CellBounds.X + e.CellBounds.Width, e.CellBounds.Y + e.CellBounds.Height)
+            Dim point4 As New Point(e.CellBounds.X + e.CellBounds.Width, e.CellBounds.Y)
+            e.Graphics.FillPolygon(br, {point2, point3, point4})
+            e.Graphics.FillPolygon(br2, {point1, point2, point4})
+            'e.Graphics.FillRectangle(br, New System.Drawing.Rectangle(e.CellBounds.X, e.CellBounds.Y, e.CellBounds.X + e.CellBounds.Width / 2, e.CellBounds.Y + e.CellBounds.Height))
+            'e.Graphics.FillRectangle(br2, New System.Drawing.Rectangle(e.CellBounds.X + (e.CellBounds.Width / 2) + 1, e.CellBounds.Y, e.CellBounds.X + (e.CellBounds.Width / 2) - 1, e.CellBounds.Y + e.CellBounds.Height))
+            e.PaintContent(e.ClipBounds)
+            e.Handled = True
+        End If
+    End Sub
+
 
     Private Sub DataGridView1_RowPostPaint(sender As Object, e As DataGridViewRowPostPaintEventArgs) Handles DataGridView1.RowPostPaint
         If e.RowIndex = -1 Then Exit Sub
@@ -2568,14 +2651,16 @@ AddMod2:
             tmpList.Add(DataGridView2.CurrentRow.Cells("ID").Value.ToString)
             tmpList.Add(DataGridView2.CurrentRow.Cells("Name").Value.ToString)
             frmResults.MyData = tmpList
-        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
-        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" Then
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "" AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowModInfo(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, CInt(GetNumeric(DataGridView2.Columns(e.ColumnIndex).Name)) - 1, e)
-        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowAllPossibleMods(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitPrefixMods, "Prefix")
-        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" Then
+        ElseIf DataGridView2.Columns(e.ColumnIndex).Name.ToLower.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "" AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") <> "Crafted?" Then
             ShowAllPossibleMods(DataGridView2, FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)), FullStoreInventory(CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)).ExplicitSuffixMods, "Suffix")
+        ElseIf NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value.ToString, "") = "Crafted?" Then
+            MessageBox.Show(DataGridView2.Rows(e.RowIndex).Cells("CraftedMods").Value, "Crafted Mods on this item")
         ElseIf e.ColumnIndex = DataGridView2.Columns("Location").Index Then
             ' Take the user to the GGG web page associated with the ThreadID
             Dim strURL As String = "http://www.pathofexile.com/forum/view-thread/" & DataGridView2.Rows(e.RowIndex).Cells("ThreadID").Value
@@ -2613,9 +2698,13 @@ AddMod2:
         Dim strName As String = DataGridView2.Columns(e.ColumnIndex).Name.ToLower
         Dim intIndex As Integer = CInt(DataGridView2.Rows(e.RowIndex).Cells("Index").Value)
         If strName.Contains("prefix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
-            DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+            If DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value <> "Crafted?" Then
+                DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitPrefixMods, strName, sender, e)
+            End If
         ElseIf strName.Contains("suffix") AndAlso NotNull(DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value, "").ToString <> "" Then
-            DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+            If DataGridView2.Rows(e.RowIndex).Cells(e.ColumnIndex).Value <> "Crafted?" Then
+                DataGridViewAddLevelBar(DataGridView2, FullStoreInventory(intIndex).ExplicitSuffixMods, strName, sender, e)
+            End If
         End If
     End Sub
 

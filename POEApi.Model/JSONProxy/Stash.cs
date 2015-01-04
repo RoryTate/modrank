@@ -82,6 +82,9 @@ namespace POEApi.Model.JSONProxy
         [DataMember(Name = "explicitMods")]
         public List<string> ExplicitMods { get; set; }
 
+        [DataMember(Name = "craftedMods")]
+        public List<string> CraftedMods { get; set; }
+
         [DataMember(Name = "descrText")]
         public string DescrText { get; set; }
 

@@ -58,7 +58,7 @@ Public Class frmFilter
                 ' Used to populate cmbText0 with the entries from the weights/mods file
                 For Each row As DataRow In dtWeights.Rows
                     Dim strName As String = row("ExportField").ToString & IIf(row("ExportField2").ToString <> "", "/" & row("ExportField2").ToString, "").ToString
-                    If dtMods.Select("Description='" & row("Description").ToString & "'")(0)("Prefix/Suffix").ToString = "Prefix" Then
+                    If dtMods.Select("Description='" & Replace(row("Description").ToString, "'", "''") & "'")(0)("Prefix/Suffix").ToString = "Prefix" Then
                         If lstDistinctPre.IndexOf(strName) = -1 Then lstDistinctPre.Add(strName)
                     Else
                         If lstDistinctSuf.IndexOf(strName) = -1 Then lstDistinctSuf.Add(strName)

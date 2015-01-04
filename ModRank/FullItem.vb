@@ -26,6 +26,7 @@ Public Class FullItem
     Public Property ES As Integer = 0
     Public Property ExplicitPrefixMods As New CloneableList(Of FullMod)
     Public Property ExplicitSuffixMods As New CloneableList(Of FullMod)
+    Public Property CraftedMods As New CloneableList(Of FullMod)
     Public Property OtherSolutions As Boolean = False       ' True if there are other solutions to the mod distribution
     Public Property ImplicitMods As New CloneableList(Of FullMod)
     Public Property Quality As Byte = 0

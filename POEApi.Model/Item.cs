@@ -35,6 +35,7 @@ namespace POEApi.Model
         public string inventoryId { get; private set; }
         public string SecDescrText { get; private set; }
         public List<string> Explicitmods { get; set; }
+        public List<string> Craftedmods { get; set; }
         public ItemType ItemType { get; set; }
         public List<Property> Properties { get; set; }
         public bool IsQuality { get; private set; }
@@ -59,6 +60,7 @@ namespace POEApi.Model
             this.inventoryId = item.InventoryId;
             this.SecDescrText = item.SecDescrText;
             this.Explicitmods = item.ExplicitMods;
+            this.Craftedmods= item.CraftedMods;
             this.ItemType = Model.ItemType.UnSet;
             if (item.Properties != null)
             {
